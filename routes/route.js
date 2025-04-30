@@ -1,0 +1,41 @@
+const express = require("express");
+const AuthRoute = require("./AuthRoute.js");
+const EmailRoute = require("./EmailVerifyRoute.js");
+const UserRoute = require("./UserRoute.js");
+const ProductRoute = require("./ProductRoute.js");
+const CartRoute = require("./CartRoute.js");
+const OrderRoute = require("./OrderRoute.js");
+const RajaOngkirRoute = require("./RajaOngkirRoute.js");
+const PaymentRoute = require("./PaymentMidtrans.js");
+const ShippingRoute = require("./ShippingRoute.js");
+const InvoiceRoute = require("./InvoiceRoute.js");
+const WishlistRoute = require("./WishlistRoute.js");
+const ReviewRoute = require("./ReviewRoute.js");
+const AuthAdminRoute = require("../routes/admin/AuthAdminRoute.js");
+const SalesRoute = require("../routes/admin/SalesRoute.js");
+const OrderAdminRoute = require("../routes/admin/OrderAdminRoute.js");
+const UsersAdminRoute = require("../routes/admin/UsersRoute.js");
+const ProductsAdminRoute = require("../routes/admin/ProductsRoute.js");
+const router = express();
+
+const api = "/api/v1";
+
+router.use(api, AuthRoute);
+router.use(api, EmailRoute);
+router.use(api, UserRoute);
+router.use(api, ProductRoute);
+router.use(api, CartRoute);
+router.use(api, OrderRoute);
+router.use(api, RajaOngkirRoute);
+router.use(api, PaymentRoute);
+router.use(api, ShippingRoute);
+router.use(api, InvoiceRoute);
+router.use(api, WishlistRoute);
+router.use(api, ReviewRoute);
+
+router.use(api, AuthAdminRoute);
+router.use(api, SalesRoute);
+router.use(api, OrderAdminRoute);
+router.use(api, UsersAdminRoute);
+router.use(api, ProductsAdminRoute);
+module.exports = router;
