@@ -11,11 +11,14 @@ const ShippingRoute = require("./ShippingRoute.js");
 const InvoiceRoute = require("./InvoiceRoute.js");
 const WishlistRoute = require("./WishlistRoute.js");
 const ReviewRoute = require("./ReviewRoute.js");
+const PromoCheckRoute = require("./PromoRoute.js");
 const AuthAdminRoute = require("../routes/admin/AuthAdminRoute.js");
 const SalesRoute = require("../routes/admin/SalesRoute.js");
 const OrderAdminRoute = require("../routes/admin/OrderAdminRoute.js");
 const UsersAdminRoute = require("../routes/admin/UsersRoute.js");
 const ProductsAdminRoute = require("../routes/admin/ProductsRoute.js");
+const PromoCodesAdminRoute = require("../routes/admin/PromoCodes.js");
+
 const router = express();
 
 const api = "/api/v1";
@@ -32,10 +35,12 @@ router.use(api, ShippingRoute);
 router.use(api, InvoiceRoute);
 router.use(api, WishlistRoute);
 router.use(api, ReviewRoute);
+router.use(api, PromoCheckRoute);
 
 router.use(api, AuthAdminRoute);
 router.use(api, SalesRoute);
 router.use(api, OrderAdminRoute);
 router.use(api, UsersAdminRoute);
 router.use(api, ProductsAdminRoute);
+router.use(api, PromoCodesAdminRoute);
 module.exports = router;

@@ -36,6 +36,7 @@ const getAllOrders = async (req, res) => {
   o.order_code,
   o.shipping_method,
   o.status,
+    o.tracking_number,
   u.name AS user_name,
    u.firstname,
       u.lastname,
@@ -43,7 +44,7 @@ const getAllOrders = async (req, res) => {
   o.total_amount
 FROM orders o
 JOIN users u ON o.user_id = u.id
-WHERE o.status IN ('paid', 'shipped', 'completed')
+WHERE o.status IN ('pending', 'paid', 'shipped', 'completed')
 ORDER BY o.created_at DESC;
 
 
@@ -157,10 +158,32 @@ const getAllTransactionOrders = async (req, res) => {
     });
   }
 };
+
+const updateTrackingNumber = async (req, res) => {
+  const { orderId, trackingNumber } = req.body;
+
+  if (!orderId || !trackingNumber) {
+    return res
+      .status(400)
+      .json({ error: "orderId dan trackingNumber wajib diisi" });
+  }
+
+  try {
+    await query("UPDATE orders SET tracking_number = ? WHERE id = ?", [
+      trackingNumber,
+      orderId,
+    ]);
+    res.json({ message: "Tracking number berhasil diupdate" });
+  } catch (error) {
+    console.error("Gagal update tracking number:", error);
+    res.status(500).json({ error: "Gagal update tracking number" });
+  }
+};
 module.exports = {
   getRecentOrders,
   getAllOrders,
   getAllOrderItems,
   getAllOrderShipping,
   getAllTransactionOrders,
+  updateTrackingNumber,
 };

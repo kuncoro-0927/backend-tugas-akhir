@@ -226,6 +226,7 @@ const refreshTokenHandler = async (req, res) => {
       {
         id: decoded.id,
         email: decoded.email,
+        role_id: decoded.role_id,
       },
       process.env.JWT_SECRET,
       { expiresIn: "1h" }
@@ -238,8 +239,10 @@ const refreshTokenHandler = async (req, res) => {
       sameSite: "strict",
       maxAge: 3600000, // 1 jam
     });
+    console.log("Refresh token ditemukan:", token);
+    console.log("Decoded refresh:", decoded);
 
-    res.status(200).json({ message: "Access token diperbarui" });
+    res.status(200).json({ accessToken: newToken });
   });
 };
 
@@ -256,11 +259,11 @@ const loginWithGoogle = async (req, res) => {
         name: user.name,
       },
       process.env.JWT_SECRET,
-      { expiresIn: "1h" }
+      { expiresIn: "10s" }
     );
 
     const refreshToken = jwt.sign(
-      { id: user.id, email: user.email },
+      { id: user.id, email: user.email, role_id: user.role_id },
       process.env.JWT_REFRESH_SECRET,
       { expiresIn: "7d" }
     );
@@ -284,7 +287,7 @@ const loginWithGoogle = async (req, res) => {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "Strict",
-      maxAge: 60 * 1000, // 1 menit
+      maxAge: 10000,
     });
 
     // Redirect ke frontend

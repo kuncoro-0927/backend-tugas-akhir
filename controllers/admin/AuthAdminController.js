@@ -63,7 +63,7 @@ const loginAdmin = async (req, res) => {
     );
 
     const refreshToken = jwt.sign(
-      { id: user.id, email: user.email },
+      { id: user.id, email: user.email, role_id: user.role_id },
       process.env.JWT_REFRESH_SECRET,
       { expiresIn: "7d" }
     );
@@ -109,7 +109,7 @@ const getAdminData = async (req, res) => {
   const adminId = req.user.id;
   try {
     const result = await query(
-      "SELECT id, firstname, lastname, email, role_id FROM users WHERE id = ?",
+      "SELECT id,name, firstname, lastname, email, role_id FROM users WHERE id = ?",
       [adminId]
     );
 
@@ -128,6 +128,7 @@ const getAdminData = async (req, res) => {
       msg: "Data admin berhasil diambil",
       data: {
         id: admin.id,
+        name: admin.name,
         firstname: admin.firstname,
         lastname: admin.lastname,
         email: admin.email,
@@ -167,6 +168,7 @@ const refreshAdminTokenHandler = async (req, res) => {
       {
         id: decoded.id,
         email: decoded.email,
+        role_id: decoded.role_id,
       },
       process.env.JWT_SECRET,
       { expiresIn: "1h" }

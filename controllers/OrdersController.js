@@ -16,15 +16,19 @@ const proceedToCheckout = async (req, res) => {
       return total + item.price * item.quantity;
     }, 0);
 
-    // Admin dan ongkir bisa kamu atur di sini
-    const admin_fee = 2000; // misalnya 2.500
+    const admin_fee = shipping_method === "delivery" ? 2000 : 0;
     const shipping_fee = shipping_method === "delivery" ? 0 : 0;
 
     const totalAmount = subtotal + admin_fee + shipping_fee;
     const generateTicketCode = () => {
       const prefix = "FZA";
-      const randomNumber = Math.floor(Math.random() * 100000000);
-      return `${prefix}${randomNumber}`;
+      const randomNumber = Math.floor(Math.random() * 1000000)
+        .toString()
+        .padStart(6, "0");
+      return `FZA-${new Date()
+        .toISOString()
+        .slice(0, 10)
+        .replace(/-/g, "")}-${randomNumber}`;
     };
     const orderId = uuidv4();
     const orderCode = generateTicketCode();

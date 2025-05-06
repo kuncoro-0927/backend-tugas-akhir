@@ -1,9 +1,9 @@
 const axios = require("axios");
-
+const { query } = require("../config/database");
 const BASE_URL = "https://rajaongkir.komerce.id/api/v1/";
 const FormData = require("form-data");
 const API_KEY = "EJv2CoKLf94a0f0c779ab1f25f5nHLar"; // ambil dari https://collaborator.komerce.id/profile?tab=api-key
-
+const cron = require("node-cron");
 // Ambil daftar provinsi
 const getProvinces = async (req, res) => {
   try {
@@ -77,38 +77,69 @@ const calculateCost = async (req, res) => {
   }
 };
 
-// const calculateCost = async (req, res) => {
-//   const { origin, destination, weight, courier } = req.body;
+const trackWaybill = async (req, res) => {
+  const { order_code } = req.body;
 
-//   try {
-//     const response = await axios.post(
-//       "https://rajaongkir.komerce.id/api/v1/calculate/domestic-cost",
-//       {
-//         origin,
-//         destination,
-//         weight,
-//         courier,
-//       },
-//       {
-//         headers: {
-//           key: API_KEY,
-//           accept: "application/json",
-//         },
-//       }
-//     );
+  if (!order_code) {
+    return res.status(400).json({ error: "Order Code harus disertakan." });
+  }
 
-//     const shippingCosts = response.data.data;
-//     res.json({ shippingCosts });
-//   } catch (error) {
-//     console.error(
-//       "Error calculating shipping cost:",
-//       error.response?.data || error.message
-//     );
-//     res.status(500).json({ message: "Failed to calculate shipping cost" });
-//   }
-// };
+  try {
+    // Ambil status dan nomor resi dari database
+    const [order] = await query(
+      "SELECT status, tracking_number FROM orders WHERE order_code = ?",
+      [order_code]
+    );
+
+    // Jika order tidak ditemukan
+    if (!order) {
+      return res.status(404).json({ error: "Order tidak ditemukan." });
+    }
+
+    const { status, tracking_number } = order;
+
+    // Jika status paid tapi belum ada resi
+    if (status === "paid" && !tracking_number) {
+      return res.json({
+        tracking_data: null,
+        order_status: status,
+      });
+    }
+
+    // Jika tracking number ada, kirim ke API Komerce
+    const courier = "jne";
+    const form = new FormData();
+    form.append("awb", tracking_number);
+    form.append("courier", courier);
+
+    const response = await axios.post(
+      "https://rajaongkir.komerce.id/api/v1/track/waybill",
+      form,
+      {
+        headers: {
+          ...form.getHeaders(),
+          key: API_KEY,
+        },
+      }
+    );
+
+    // Berhasil, kirimkan hasil tracking
+    res.json({
+      tracking_data: response.data.data, // ambil hanya bagian data-nya
+      order_status: status,
+    });
+  } catch (error) {
+    console.error(
+      "Error tracking waybill:",
+      error.response?.data || error.message
+    );
+    res.status(500).json({ error: "Gagal melacak resi." });
+  }
+};
+
 module.exports = {
   getProvinces,
   getCities,
   calculateCost,
+  trackWaybill,
 };

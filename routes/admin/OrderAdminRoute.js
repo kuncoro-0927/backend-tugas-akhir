@@ -5,6 +5,7 @@ const {
   getAllOrderItems,
   getAllOrderShipping,
   getAllTransactionOrders,
+  updateTrackingNumber,
 } = require("../../controllers/admin/OrderController");
 const { verifyAdminToken } = require("../../middleware/VerifyToken.js");
 const { checkRole } = require("../../middleware/CheckRole.js");
@@ -42,5 +43,12 @@ OrderAdminRoute.get(
   verifyAdminToken,
   checkRole(1),
   getAllTransactionOrders
+);
+
+OrderAdminRoute.post(
+  "/order/update-tracking",
+  verifyAdminToken,
+  checkRole(1),
+  updateTrackingNumber
 );
 module.exports = OrderAdminRoute;

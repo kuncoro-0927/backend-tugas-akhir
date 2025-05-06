@@ -8,18 +8,98 @@ let snap = new midtransClient.Snap({
 });
 
 exports.processPayment = async (req, res) => {
-  const { order_id, total_amount, customer } = req.body;
+  const {
+    order_id,
+    total_amount,
+    customer,
+    shipping_cost,
+    selectedService,
+    admin_fee,
+    promo,
 
+    promocode,
+  } = req.body;
+  console.log("REQ BODY:", req.body);
+  const cartItems = customer?.cartItems;
+
+  if (!Array.isArray(cartItems)) {
+    return res.status(400).json({
+      message:
+        "cartItems is required and must be an array in customer.cartItems",
+    });
+  }
+
+  const itemDetails = [
+    ...cartItems.map((item) => ({
+      id: item.productId,
+      name: item.productName,
+      price: parseInt(item.price),
+      quantity: item.quantity,
+    })),
+    {
+      id: "ongkir",
+      name: `Ongkir (${selectedService?.name})`,
+      price: shipping_cost,
+      quantity: 1,
+    },
+    {
+      id: "admin_fee",
+      name: "Biaya Admin",
+      price: admin_fee,
+      quantity: 1,
+    },
+  ];
+  const discount = promocode?.discount || 0;
+  if (discount > 0) {
+    itemDetails.push({
+      id: "promo",
+      name: `Diskon ${promocode?.code}`,
+      price: -discount,
+      quantity: 1,
+    });
+  }
+  console.log("itemDetails:", itemDetails);
+  const subtotal = cartItems.reduce(
+    (sum, item) => sum + parseInt(item.price) * item.quantity,
+    0
+  );
+  const shipping = parseInt(req.body.shipping_cost || 0);
+  const admin = parseInt(req.body.admin_fee || 0);
+
+  const grossAmount = itemDetails.reduce(
+    (sum, item) => sum + item.price * item.quantity,
+    0
+  );
   try {
     const paymentParams = {
       transaction_details: {
         order_id,
-        gross_amount: total_amount,
+        gross_amount: grossAmount,
       },
+      item_details: itemDetails,
+
       customer_details: {
         first_name: customer.firstName,
         email: customer.email,
         phone: customer.phone,
+        billing_address: {
+          first_name: customer.firstName,
+          phone: customer.phone,
+          email: customer.email,
+          address: customer.address,
+          city: customer.city,
+          postal_code: customer.postalCode,
+          country_code: "IDN",
+        },
+        shipping_address: {
+          first_name: customer.firstName,
+          phone: customer.phone,
+          email: customer.email,
+          address: customer.address,
+          city: customer.city,
+          postal_code: customer.postalCode,
+          country_code: "IDN",
+        },
       },
       credit_card: {
         secure: true,
@@ -28,7 +108,7 @@ exports.processPayment = async (req, res) => {
         finish: `${process.env.FRONTEND_URL}/payment/success/${order_id}`,
       },
     };
-
+    console.log("params", paymentParams);
     const transaction = await snap.createTransaction(paymentParams);
 
     const insertQuery = `
@@ -55,14 +135,16 @@ exports.processPayment = async (req, res) => {
       order_id,
       transaction.token,
       "pending",
-      total_amount,
+      grossAmount,
       "credit_card", // atau payment method lainnya
       "Menunggu pembayaran",
       transaction.redirect_url,
     ]);
 
     // res.status(200).json({ snapToken: transaction.token });
-    res.status(200).json({ redirectUrl: transaction.redirect_url });
+    res
+      .status(200)
+      .json({ redirectUrl: transaction.redirect_url, grossAmount });
   } catch (error) {
     console.error(error);
     res.status(500).json({ msg: "Gagal memproses pembayaran." });

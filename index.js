@@ -10,12 +10,15 @@ const cookieParser = require("cookie-parser");
 const app = express();
 const session = require("express-session");
 const MySQLStore = require("express-mysql-session")(session);
+const cron = require("node-cron");
+const trackOrders = require("./cron/trackOrders.js");
 app.use(cookieParser());
 app.use(express.json());
 const sessionStore = new MySQLStore({}, database);
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.urlencoded({ extended: true })); // Untuk parsing form-data
 app.use(bodyParser.json());
+
 app.use(
   session({
     secret: process.env.SESSION_SECRET || "your-secret-key",
@@ -45,6 +48,11 @@ app.use("/invoices", express.static(path.join(__dirname, "invoices")));
 require("dotenv").config();
 app.use(express.static("public"));
 app.use("/public", express.static("public"));
+
+cron.schedule("0 */6 * * *", () => {
+  console.log("Running cron job to check order status...");
+  trackOrders();
+});
 
 app.listen(process.env.APP_PORT, async () => {
   await testConnection();
