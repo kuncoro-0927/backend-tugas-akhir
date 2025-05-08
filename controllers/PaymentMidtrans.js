@@ -16,7 +16,6 @@ exports.processPayment = async (req, res) => {
     selectedService,
     admin_fee,
     promo,
-
     promocode,
   } = req.body;
   console.log("REQ BODY:", req.body);
@@ -49,15 +48,18 @@ exports.processPayment = async (req, res) => {
       quantity: 1,
     },
   ];
-  const discount = promocode?.discount || 0;
-  if (discount > 0) {
+  const discountCode = promocode?.code || promo?.code;
+  const discountAmount = promocode?.discount || promo?.discount || 0;
+
+  if (discountAmount > 0 && discountCode) {
     itemDetails.push({
       id: "promo",
-      name: `Diskon ${promocode?.code}`,
-      price: -discount,
+      name: `Diskon ${discountCode}`,
+      price: -discountAmount,
       quantity: 1,
     });
   }
+
   console.log("itemDetails:", itemDetails);
   const subtotal = cartItems.reduce(
     (sum, item) => sum + parseInt(item.price) * item.quantity,
@@ -140,6 +142,15 @@ exports.processPayment = async (req, res) => {
       "Menunggu pembayaran",
       transaction.redirect_url,
     ]);
+    const promoCode = promocode?.code || promo?.code || null;
+    const discountValue = promocode?.discount || promo?.discount || 0;
+
+    const updateOrderPromoQuery = `
+      UPDATE orders 
+      SET promo_code = ?, discount_amount = ?
+      WHERE order_id = ?
+    `;
+    await query(updateOrderPromoQuery, [promoCode, discountValue, order_id]);
 
     // res.status(200).json({ snapToken: transaction.token });
     res
@@ -241,35 +252,63 @@ exports.handlePaymentCallback = async (req, res) => {
       payment_method_display = bank || "Unknown";
     }
 
-    const updateTransactionQuery = `
-      UPDATE transactions SET
-        transaction_id = ?,
-        transaction_status = ?,
-        payment_type = ?,
-        gross_amount = ?,
-        transaction_time = ?,
-        settlement_time = ?,
-        expiry_time = ?,
-        status_message = ?,
-        bank = ?, -- pastikan kolom bank sudah ada di tabel transactions
-        payment_method_display = ?, -- kolom untuk menyimpan display format
-        updated_at = CURRENT_TIMESTAMP()
-      WHERE order_id = ?
-    `;
+    // Cek apakah transaksi sudah ada
+    const checkQuery = `SELECT COUNT(*) as count FROM transactions WHERE order_id = ?`;
+    const [checkResult] = await query(checkQuery, [order_id]);
 
-    await query(updateTransactionQuery, [
-      transaction_id,
-      newStatus,
-      payment_type || null,
-      gross_amount,
-      transaction_time || null,
-      settlement_time || null,
-      expiry_time || null,
-      status_message || null,
-      bank,
-      payment_method_display,
-      order_id,
-    ]);
+    if (checkResult.count > 0) {
+      // Jika sudah ada, lakukan UPDATE
+      const updateTransactionQuery = `
+    UPDATE transactions SET
+      transaction_id = ?,
+      transaction_status = ?,
+      payment_type = ?,
+      gross_amount = ?,
+      transaction_time = ?,
+      settlement_time = ?,
+      expiry_time = ?,
+      status_message = ?,
+      bank = ?,
+      payment_method_display = ?,
+      updated_at = CURRENT_TIMESTAMP()
+    WHERE order_id = ?
+  `;
+      await query(updateTransactionQuery, [
+        transaction_id,
+        newStatus,
+        payment_type || null,
+        gross_amount,
+        transaction_time || null,
+        settlement_time || null,
+        expiry_time || null,
+        status_message || null,
+        bank,
+        payment_method_display,
+        order_id,
+      ]);
+    } else {
+      // Jika belum ada, lakukan INSERT
+      const insertTransactionQuery = `
+    INSERT INTO transactions (
+      order_id, transaction_id, transaction_status, payment_type,
+      gross_amount, transaction_time, settlement_time, expiry_time,
+      status_message, bank, payment_method_display, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP())
+  `;
+      await query(insertTransactionQuery, [
+        order_id,
+        transaction_id,
+        newStatus,
+        payment_type || null,
+        gross_amount,
+        transaction_time || null,
+        settlement_time || null,
+        expiry_time || null,
+        status_message || null,
+        bank,
+        payment_method_display,
+      ]);
+    }
 
     // Update status juga di tabel orders jika status sukses
     // Update status juga di tabel orders jika status sukses

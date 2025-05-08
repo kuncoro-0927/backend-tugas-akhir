@@ -53,6 +53,10 @@ cron.schedule("0 */6 * * *", () => {
   console.log("Running cron job to check order status...");
   trackOrders();
 });
+// cron.schedule("*/10 * * * * *", () => {
+//   console.log("Running cron job every 10 seconds to check order status...");
+//   trackOrders();
+// });
 
 app.listen(process.env.APP_PORT, async () => {
   await testConnection();

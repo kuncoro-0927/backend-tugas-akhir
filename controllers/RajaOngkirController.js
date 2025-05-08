@@ -2,7 +2,7 @@ const axios = require("axios");
 const { query } = require("../config/database");
 const BASE_URL = "https://rajaongkir.komerce.id/api/v1/";
 const FormData = require("form-data");
-const API_KEY = "EJv2CoKLf94a0f0c779ab1f25f5nHLar"; // ambil dari https://collaborator.komerce.id/profile?tab=api-key
+const API_KEY = "unxrIR8G98d2e20af7dc8a10pF19psbR"; // CYiHS6520b4793cd0ef3bc9bTnd2hLar // EJv2CoKLf94a0f0c779ab1f25f5nHLar // unxrIR8G98d2e20af7dc8a10pF19psbR
 const cron = require("node-cron");
 // Ambil daftar provinsi
 const getProvinces = async (req, res) => {
@@ -30,9 +30,6 @@ const getCities = async (req, res) => {
       }
     );
 
-    // Filter the cities that match the province ID
-
-    console.log("Cities fetched successfully:", response.data);
     res.json(response.data);
   } catch (error) {
     console.error("Error fetching cities:", error);
@@ -62,9 +59,6 @@ const calculateCost = async (req, res) => {
         },
       }
     );
-
-    // Log response untuk memeriksa struktur datanya
-    console.log("Response from Komerce API:", response.data);
 
     // Jika response.data berisi informasi yang valid, lakukan pemrosesan lebih lanjut
     res.json(response.data);

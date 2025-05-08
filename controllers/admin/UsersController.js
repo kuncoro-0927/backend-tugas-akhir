@@ -8,6 +8,7 @@ const getAllUsers = async (req, res) => {
       users.firstname,
       users.lastname,
       users.email,
+            users.address,
          users.phone,
           users.province,
             users.isverified,
