@@ -6,35 +6,6 @@ const nodemailer = require("nodemailer");
 const generateOTP = () =>
   Math.floor(100000 + Math.random() * 900000).toString();
 
-// exports.verifyOTP = async (req, res) => {
-//   const { otp, token } = req.body;
-
-//   try {
-//     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-//     if (decoded.otp !== otp) {
-//       return res.status(400).json({ message: "Kode OTP tidak valid" });
-//     }
-
-//     await query("UPDATE users SET isVerified = true WHERE email = ?", [
-//       decoded.email,
-//     ]);
-
-//     const loginToken = jwt.sign(
-//       { email: decoded.email },
-//       process.env.JWT_SECRET,
-//       { expiresIn: "1h" }
-//     );
-//     res.status(200).json({ message: "Verifikasi berhasil", loginToken });
-//   } catch (error) {
-//     console.error("Verification error:", error);
-//     res.status(400).json({
-//       message: "Kode OTP kadaluwarsa atau salah",
-//       error: error.message,
-//     });
-//   }
-// };
-
 exports.verifyOTP = async (req, res) => {
   const { otp, otpToken } = req.body;
 
@@ -62,13 +33,18 @@ exports.verifyOTP = async (req, res) => {
 
     // Buat token login baru setelah verifikasi berhasil
     const loginToken = jwt.sign(
-      { id: user.id, name: user.name, email: user.email },
+      {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role_id: user.role_id,
+      },
       process.env.JWT_SECRET,
       { expiresIn: "1h" } // Token berlaku selama 1 jam
     );
 
     // Simpan token di cookies
-    res.cookie("token", loginToken, {
+    res.cookie("user_token", loginToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
@@ -81,6 +57,7 @@ exports.verifyOTP = async (req, res) => {
       user: {
         name: user.name,
         email: user.email,
+        role_id: user.role_id,
       },
     });
   } catch (error) {

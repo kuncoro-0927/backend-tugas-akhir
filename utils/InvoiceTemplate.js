@@ -184,7 +184,9 @@ function generateInvoiceHTML(order) {
                         </tr>
                         <tr>
                           <td style="font-size: 12px; color: #5b5b5b; font-family: 'Open Sans', sans-serif; line-height: 18px; vertical-align: top; text-align: right;">
-                            <small>ORDER</small>${order.invoiceNumber}<br />
+                            <small>ORDER ID: </small> ${
+                              order.invoiceNumber
+                            }<br />
                             <small>${new Date(
                               order.createdAt
                             ).toLocaleDateString("id-ID")}</small>
@@ -318,6 +320,14 @@ function generateInvoiceHTML(order) {
                       </td>
                     </tr>
                      <tr>
+                      <td style="font-size: 12px; font-family: 'Open Sans', sans-serif; color: #057a55; line-height: 22px; vertical-align: top; text-align:right; ">
+                      Promo
+                      </td>
+                      <td style="font-size: 12px; font-family: 'Open Sans', sans-serif; color: #057a55; line-height: 22px; vertical-align: top; text-align:right; ">
+                      - Rp ${Number(order.promo).toLocaleString("id-ID")}
+                      </td>
+                    </tr>
+                     <tr>
                       <td style="font-size: 12px; font-family: 'Open Sans', sans-serif; color: #000; line-height: 22px; vertical-align: top; text-align:right; ">
                         <strong>Total Pembayaran</strong>
                       </td>
@@ -423,20 +433,23 @@ function generateInvoiceHTML(order) {
                             </tr>
                             <tr>
                               <td style="font-size: 11px; font-family: 'Open Sans', sans-serif; color: #5b5b5b; line-height: 1; vertical-align: top; ">
-                                <strong>INFORMASI PENGIRIMAN</strong>
+                                <strong>INFORMASI PENERIMA</strong>
                               </td>
                             </tr>
                             <tr>
                               <td width="100%" height="10"></td>
                             </tr>
                             <tr>
-                              <td style="font-size: 12px; font-family: 'Open Sans', sans-serif; color: #5b5b5b; line-height: 20px; vertical-align: top; ">
-                                 ${order.customerName}<br>  ${
-    order.shippingAddress
-  }<br>  ${order.shippingProvince}<br> ${order.shippingPostalCode}, ${
-    order.shippingCity
-  }<br> ${order.shippingPhone}
-                              </td>
+               <td style="font-size: 12px; font-family: 'Open Sans', sans-serif; color: #5b5b5b; line-height: 20px; vertical-align: top;">
+  ${
+    order.shippingMethod === "Pickup"
+      ? `${order.shippingEmail}<br>${order.customerName}<br>${order.shippingPhone}`
+      : `${order.shippingEmail}<br>${order.customerName}<br>${order.shippingAddress}<br>${order.shippingProvince}<br>${order.shippingPostalCode}, ${order.shippingCity}<br>${order.shippingPhone}`
+  }
+</td>
+
+
+
                             </tr>
                           </tbody>
                         </table>
@@ -458,11 +471,15 @@ function generateInvoiceHTML(order) {
                               <td width="100%" height="10"></td>
                             </tr>
                             <tr>
-                              <td style="font-size: 12px; font-family: 'Open Sans', sans-serif; color: #5b5b5b; line-height: 20px; vertical-align: top; ">
-                                ${order.shippingMethod}<br>  ${
-    order.shippingCourier
-  }<br> Estimasi: ${order.shippingEtd} 
-                              </td>
+                              <td style="font-size: 12px; font-family: 'Open Sans', sans-serif; color: #5b5b5b; line-height: 20px; vertical-align: top;">
+  ${order.shippingMethod}<br>
+  ${
+    order.shippingMethod === "delivery"
+      ? `${order.shippingCourier}<br> Estimasi: ${order.shippingEtd}`
+      : ""
+  }
+</td>
+
                             </tr>
                           </tbody>
                         </table>

@@ -1,4 +1,25 @@
+const fs = require("fs").promises;
 const { query } = require("../../config/database");
+const path = require("path");
+
+const createProduct = async (req, res) => {
+  const { name, description, price, category, size, weight } = req.body;
+  const image_url = req.file ? `/uploads/${req.file.filename}` : null;
+
+  try {
+    await query(
+      `INSERT INTO products (name, description, price, weight_gram, image_url, category_id, size, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+      [name, description, price, weight, image_url, category, size]
+    );
+
+    res.status(201).json({ msg: "Produk berhasil ditambahkan", image_url });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ msg: "Gagal menambahkan produk", error: error.message });
+  }
+};
 
 const getAllProducts = async (req, res) => {
   try {
@@ -32,4 +53,121 @@ const getAllProducts = async (req, res) => {
   }
 };
 
-module.exports = { getAllProducts };
+const updateProduct = async (req, res) => {
+  const { id } = req.params; // Mengambil ID produk dari URL
+  const { name, description, price, category, size, weight } = req.body;
+  const image_url = req.file ? `/uploads/${req.file.filename}` : null;
+
+  try {
+    // Jika ada gambar baru, hapus gambar lama terlebih dahulu (jika ada)
+    if (image_url) {
+      const [product] = await query(
+        "SELECT image_url FROM products WHERE id = ?",
+        [id]
+      );
+      if (product.image_url) {
+        const oldImagePath = path.join(
+          __dirname,
+          "../../public",
+          product.image_url
+        );
+        fs.unlinkSync(oldImagePath); // Menghapus gambar lama dari server
+      }
+    }
+
+    // Update produk dengan data baru
+    const updateQuery = `
+      UPDATE products
+      SET name = ?, description = ?, price = ?, weight_gram = ?, image_url = ?, category_id = ?, size = ?, updated_at = NOW()
+      WHERE id = ?
+    `;
+    const updateValues = [
+      name,
+      description,
+      price,
+      weight,
+      image_url,
+      category,
+      size,
+      id,
+    ];
+
+    await query(updateQuery, updateValues);
+
+    res.status(200).json({ msg: "Produk berhasil diperbarui", image_url });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ msg: "Gagal memperbarui produk", error: error.message });
+  }
+};
+
+// Delete Product
+const deleteProduct = async (req, res) => {
+  const { id } = req.params; // Mengambil ID produk dari URL
+
+  try {
+    // Ambil URL gambar produk sebelum dihapus
+    const [product] = await query(
+      "SELECT image_url FROM products WHERE id = ?",
+      [id]
+    );
+
+    // Jika produk memiliki gambar, hapus gambar dari server
+    if (product.image_url) {
+      const imagePath = path.join(__dirname, "../../public", product.image_url);
+
+      // Cek apakah file gambar ada sebelum dihapus
+      try {
+        await fs.access(imagePath); // Cek jika file ada
+        await fs.unlink(imagePath); // Menghapus gambar dari server
+        console.log("File gambar berhasil dihapus:", imagePath);
+      } catch (fileError) {
+        console.warn(
+          "File gambar tidak ditemukan, tidak dapat dihapus:",
+          imagePath
+        );
+      }
+    }
+
+    // Hapus produk dari database
+    await query("DELETE FROM products WHERE id = ?", [id]);
+
+    res.status(200).json({ msg: "Produk berhasil dihapus" });
+  } catch (error) {
+    console.error("Gagal menghapus produk:", error);
+    res
+      .status(500)
+      .json({ msg: "Gagal menghapus produk", error: error.message });
+  }
+};
+
+const getProductById = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const [product] = await query(
+      "SELECT id, name, description, price, weight_gram, image_url, category_id, size FROM products WHERE id = ?",
+      [id]
+    );
+
+    if (!product) {
+      return res.status(404).json({ msg: "Produk tidak ditemukan" });
+    }
+
+    res.json(product);
+  } catch (error) {
+    res.status(500).json({
+      msg: "Gagal mengambil detail produk",
+      error: error.message,
+    });
+  }
+};
+
+module.exports = {
+  getAllProducts,
+  createProduct,
+  updateProduct,
+  deleteProduct,
+  getProductById,
+};

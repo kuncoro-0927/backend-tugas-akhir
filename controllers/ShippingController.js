@@ -3,6 +3,7 @@ const { query } = require("../config/database.js");
 exports.saveShippingDetails = async (req, res) => {
   const {
     order_id,
+    email,
     firstName,
     lastName,
     phone,
@@ -20,6 +21,7 @@ exports.saveShippingDetails = async (req, res) => {
     const sqlQuery = `
     INSERT INTO order_shipping_details (
     order_id,
+    email,
       shipping_firstname,
       shipping_lastname,
       shipping_phone,
@@ -31,11 +33,12 @@ exports.saveShippingDetails = async (req, res) => {
       courier,
       etd,
       shipping_cost
-    ) VALUES (?,?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?,?,?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `;
 
     const values = [
       order_id,
+      email,
       firstName,
       lastName,
       phone,

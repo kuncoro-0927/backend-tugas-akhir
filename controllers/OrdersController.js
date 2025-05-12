@@ -16,7 +16,7 @@ const proceedToCheckout = async (req, res) => {
       return total + item.price * item.quantity;
     }, 0);
 
-    const admin_fee = shipping_method === "delivery" ? 2000 : 0;
+    const admin_fee = shipping_method === "delivery" ? 2000 : 2000;
     const shipping_fee = shipping_method === "delivery" ? 0 : 0;
 
     const totalAmount = subtotal + admin_fee + shipping_fee;

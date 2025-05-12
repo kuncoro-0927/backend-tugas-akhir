@@ -11,14 +11,13 @@ const getOrderedProductsByUser = async (req, res) => {
   try {
     const result = await query(
       `
-    SELECT DISTINCT p.*
-FROM products p
-JOIN order_items oi ON p.id = oi.product_id
-JOIN orders o ON o.order_id = oi.order_id
-WHERE o.user_id = ?
-  AND o.status = 'completed'
-ORDER BY o.created_at DESC
-
+    SELECT DISTINCT p.*, o.created_at AS ordered_at
+    FROM products p
+    JOIN order_items oi ON p.id = oi.product_id
+    JOIN orders o ON o.order_id = oi.order_id
+    WHERE o.user_id = ?
+      AND o.status = 'completed'
+    ORDER BY o.created_at DESC
       `,
       [userId]
     );
@@ -117,8 +116,35 @@ ORDER BY r.created_at DESC
   }
 };
 
+const getReviewsByProductId = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const result = await query(
+      `
+      SELECT 
+        r.*, 
+        u.name AS user_name 
+      FROM reviews r
+      JOIN users u ON r.user_id = u.id
+      WHERE r.product_id = ?
+      ORDER BY r.created_at DESC
+      `,
+      [id]
+    );
+
+    return res.status(200).json({ reviews: result });
+  } catch (error) {
+    return res.status(500).json({
+      msg: "Gagal mengambil review untuk produk ini",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   getOrderedProductsByUser,
   addReviewForProduct,
   getUserReviews,
+  getReviewsByProductId,
 };

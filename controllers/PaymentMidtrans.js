@@ -1,6 +1,7 @@
 const midtransClient = require("midtrans-client");
 const { query } = require("../config/database.js");
-
+const path = require("path");
+const generateInvoicePDF = require("../utils/InvoiceGenerator");
 let snap = new midtransClient.Snap({
   isProduction: false, //sandbox
   serverKey: process.env.MIDTRANS_SERVER_KEY,
@@ -259,20 +260,20 @@ exports.handlePaymentCallback = async (req, res) => {
     if (checkResult.count > 0) {
       // Jika sudah ada, lakukan UPDATE
       const updateTransactionQuery = `
-    UPDATE transactions SET
-      transaction_id = ?,
-      transaction_status = ?,
-      payment_type = ?,
-      gross_amount = ?,
-      transaction_time = ?,
-      settlement_time = ?,
-      expiry_time = ?,
-      status_message = ?,
-      bank = ?,
-      payment_method_display = ?,
-      updated_at = CURRENT_TIMESTAMP()
-    WHERE order_id = ?
-  `;
+        UPDATE transactions SET
+          transaction_id = ?,
+          transaction_status = ?,
+          payment_type = ?,
+          gross_amount = ?,
+          transaction_time = ?,
+          settlement_time = ?,
+          expiry_time = ?,
+          status_message = ?,
+          bank = ?,
+          payment_method_display = ?,
+          updated_at = CURRENT_TIMESTAMP()
+        WHERE order_id = ?
+      `;
       await query(updateTransactionQuery, [
         transaction_id,
         newStatus,
@@ -289,12 +290,12 @@ exports.handlePaymentCallback = async (req, res) => {
     } else {
       // Jika belum ada, lakukan INSERT
       const insertTransactionQuery = `
-    INSERT INTO transactions (
-      order_id, transaction_id, transaction_status, payment_type,
-      gross_amount, transaction_time, settlement_time, expiry_time,
-      status_message, bank, payment_method_display, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP())
-  `;
+        INSERT INTO transactions (
+          order_id, transaction_id, transaction_status, payment_type,
+          gross_amount, transaction_time, settlement_time, expiry_time,
+          status_message, bank, payment_method_display, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP())
+      `;
       await query(insertTransactionQuery, [
         order_id,
         transaction_id,
@@ -310,29 +311,47 @@ exports.handlePaymentCallback = async (req, res) => {
       ]);
     }
 
-    // Update status juga di tabel orders jika status sukses
-    // Update status juga di tabel orders jika status sukses
+    // Update status order dan kosongkan keranjang jika sukses
     if (newStatus === "success") {
       const updateOrderQuery = `
-    UPDATE orders
-    SET status = 'paid', updated_at = CURRENT_TIMESTAMP()
-    WHERE order_id = ?
-  `;
+        UPDATE orders
+        SET status = 'paid', updated_at = CURRENT_TIMESTAMP()
+        WHERE order_id = ?
+      `;
       await query(updateOrderQuery, [order_id]);
 
-      // --- Cari user_id dari orders ---
+      // Cari user_id dari orders
       const getUserIdQuery = `SELECT user_id FROM orders WHERE order_id = ?`;
       const [orderResult] = await query(getUserIdQuery, [order_id]);
 
       if (orderResult && orderResult.user_id) {
         const userId = orderResult.user_id;
 
-        // --- Hapus semua cart item untuk user ini ---
+        // Hapus semua cart item
         const deleteCartItemsQuery = `
-      DELETE FROM carts
-      WHERE user_id = ?
-    `;
+          DELETE FROM carts
+          WHERE user_id = ?
+        `;
         await query(deleteCartItemsQuery, [userId]);
+      }
+
+      // Generate PDF Invoice dan simpan URL-nya ke kolom invoice_url
+      try {
+        const pdfPath = await generateInvoicePDF(order_id);
+        console.log("Invoice generated:", pdfPath);
+
+        const fileName = path.basename(pdfPath);
+        const invoiceUrl = `/invoices/${fileName}`;
+
+        const updateInvoiceQuery = `
+          UPDATE orders SET invoice_url = ?, updated_at = CURRENT_TIMESTAMP()
+          WHERE order_id = ?
+        `;
+        await query(updateInvoiceQuery, [invoiceUrl, order_id]);
+
+        console.log("Invoice URL saved:", invoiceUrl);
+      } catch (pdfError) {
+        console.error("Gagal generate invoice:", pdfError);
       }
     }
 

@@ -1,7 +1,6 @@
 const express = require("express");
 
 const {
-  createProduct,
   getAllProducts,
   getProductById,
   updateProduct,
@@ -13,7 +12,6 @@ const { verifyUserToken } = require("../middleware/VerifyToken.js");
 const upload = require("../middleware/Multer");
 const ProductRoute = express.Router();
 
-ProductRoute.post("/add/product", upload.single("image"), createProduct);
 ProductRoute.get("/product", getAllProducts);
 ProductRoute.get("/category", getAllCategories);
 ProductRoute.get("/filtered/product", getFilteredProducts);

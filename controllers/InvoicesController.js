@@ -60,6 +60,7 @@ exports.generateInvoice = async (req, res) => {
     const order = {
       invoiceNumber: orderData.order_id,
       createdAt: orderData.created_at,
+      shippingEmail: orderDetails.email,
       customerName: `${orderDetails.shipping_firstname} ${orderDetails.shipping_lastname}`,
       shippingAddress: orderDetails.shipping_address,
       shippingPhone: orderDetails.shipping_phone,
@@ -69,11 +70,11 @@ exports.generateInvoice = async (req, res) => {
       shippingCourier: orderDetails.courier,
       shippingEtd: orderDetails.etd,
       shippingMethod:
-        orderDetails.shipping_method === "pickup"
-          ? "Ambil di tempat"
-          : orderDetails.shipping_method === "delivery"
-          ? "Delivery"
-          : "Metode pengiriman tidak dikenali",
+        {
+          pickup: "Pickup", // Sesuaikan agar pickup ditampilkan sebagai "Pickup"
+          delivery: "Delivery", // Sesuaikan agar delivery tetap "Delivery"
+        }[orderData.shipping_method] || "Metode pengiriman tidak dikenali",
+
       name: orderData.user_name,
       email: orderData.user_email,
       city: orderData.user_city,
@@ -87,9 +88,11 @@ exports.generateInvoice = async (req, res) => {
       })),
       subtotal: orderData.subtotal,
       shippingCost: orderDetails.shipping_cost,
+      promo: orderData.discount_amount,
       adminFee: orderData.admin_fee,
       total: orderData.total_amount,
     };
+    console.log("Shipping Method:", order.shippingMethod); // Debugging nilai shippingMethod
 
     // 4. Generate HTML dari template invoice
     const html = generateInvoiceHTML(order);

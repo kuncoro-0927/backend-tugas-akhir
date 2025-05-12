@@ -1,24 +1,4 @@
 const { query } = require("../config/database");
-const path = require("path");
-
-const createProduct = async (req, res) => {
-  const { name, description, price, category, size } = req.body;
-  const image_url = req.file ? `/uploads/${req.file.filename}` : null;
-
-  try {
-    await query(
-      `INSERT INTO products (name, description, price, weight_gram image_url, category_id, size, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?,?, ?, NOW(), NOW())`,
-      [name, description, price, image_url, category, size]
-    );
-
-    res.status(201).json({ msg: "Produk berhasil ditambahkan", image_url });
-  } catch (error) {
-    res
-      .status(500)
-      .json({ msg: "Gagal menambahkan produk", error: error.message });
-  }
-};
 
 // READ ALL
 const getAllProducts = async (req, res) => {
@@ -153,7 +133,6 @@ const getAllCategories = async (req, res) => {
 };
 
 module.exports = {
-  createProduct,
   getAllProducts,
   getProductById,
   updateProduct,
