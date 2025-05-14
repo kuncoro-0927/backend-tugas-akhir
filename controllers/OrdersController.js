@@ -3,12 +3,8 @@ const { v4: uuidv4 } = require("uuid"); // Menggunakan UUID untuk token (opsiona
 
 const proceedToCheckout = async (req, res) => {
   const user_id = req.user.id;
-  const { shipping_method } = req.body;
+
   const cartItems = req.body.items;
-  console.log(shipping_method);
-  if (!cartItems || cartItems.length === 0) {
-    return res.status(400).json({ msg: "Keranjang Anda kosong" });
-  }
 
   try {
     // Hitung subtotal dari semua item
@@ -16,8 +12,8 @@ const proceedToCheckout = async (req, res) => {
       return total + item.price * item.quantity;
     }, 0);
 
-    const admin_fee = shipping_method === "delivery" ? 2000 : 2000;
-    const shipping_fee = shipping_method === "delivery" ? 0 : 0;
+    const admin_fee = 2000;
+    const shipping_fee = 0;
 
     const totalAmount = subtotal + admin_fee + shipping_fee;
     const generateTicketCode = () => {
@@ -33,13 +29,12 @@ const proceedToCheckout = async (req, res) => {
     const orderId = uuidv4();
     const orderCode = generateTicketCode();
     await query(
-      `INSERT INTO orders (order_id, order_code, user_id, shipping_method, subtotal, admin_fee, shipping_fee, total_amount, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?,?)`,
+      `INSERT INTO orders (order_id, order_code, user_id, subtotal, admin_fee, shipping_fee, total_amount, status)
+       VALUES ( ?, ?, ?, ?, ?, ?, ?,?)`,
       [
         orderId,
         orderCode,
         user_id,
-        shipping_method,
         subtotal,
         admin_fee,
         shipping_fee,

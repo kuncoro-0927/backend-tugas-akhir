@@ -7,6 +7,8 @@ const {
   getAllOrderShipping,
   getAllTransactionOrders,
   updateTrackingNumber,
+  updateOrder,
+  getOrderById,
 } = require("../../controllers/admin/OrderController");
 const {
   createAdminPayment,
@@ -66,5 +68,18 @@ OrderAdminRoute.post(
   verifyAdminToken,
   checkRole(1),
   updateTrackingNumber
+);
+
+OrderAdminRoute.put(
+  "/update/order/:id",
+  verifyAdminToken,
+  checkRole(1),
+  updateOrder
+);
+OrderAdminRoute.get(
+  "/get/order/:id",
+  verifyAdminToken,
+  checkRole(1),
+  getOrderById
 );
 module.exports = OrderAdminRoute;

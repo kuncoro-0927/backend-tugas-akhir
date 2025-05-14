@@ -3,14 +3,29 @@ const { query } = require("../config/database");
 // READ ALL
 const getAllProducts = async (req, res) => {
   try {
-    const result = await query(
-      "SELECT * FROM products ORDER BY created_at DESC"
-    );
+    const result = await query(`
+      SELECT 
+        p.id,
+        p.name,
+        p.description,
+        p.price,
+        p.size,
+        p.weight_gram,
+        p.image_url,
+        p.category_id,
+        c.name AS category_name,
+        p.created_at,
+        p.updated_at
+      FROM products p
+      LEFT JOIN categories c ON p.category_id = c.id
+      ORDER BY p.created_at DESC
+    `);
     return res.status(200).json(result);
   } catch (error) {
-    return res
-      .status(500)
-      .json({ msg: "Gagal mengambil produk", error: error.message });
+    return res.status(500).json({
+      msg: "Gagal mengambil produk",
+      error: error.message,
+    });
   }
 };
 

@@ -11,7 +11,6 @@ exports.saveShippingDetails = async (req, res) => {
     province,
     city,
     postal_code,
-    shipping_method,
     courier,
     etd,
     shipping_cost,
@@ -29,11 +28,10 @@ exports.saveShippingDetails = async (req, res) => {
       province,
       city,
       postal_code,
-      shipping_method,
       courier,
       etd,
       shipping_cost
-    ) VALUES (?,?,?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?,?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `;
 
     const values = [
@@ -46,7 +44,6 @@ exports.saveShippingDetails = async (req, res) => {
       province,
       city,
       postal_code,
-      shipping_method,
       courier,
       etd,
       shipping_cost,

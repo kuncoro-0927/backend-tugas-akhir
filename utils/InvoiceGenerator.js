@@ -45,11 +45,6 @@ async function generateInvoicePDF(orderId) {
     shippingPostalCode: shippingDetails.postal_code,
     shippingCourier: shippingDetails.courier,
     shippingEtd: shippingDetails.etd,
-    shippingMethod:
-      {
-        pickup: "Pickup", // Sesuaikan agar pickup ditampilkan sebagai "Pickup"
-        delivery: "Delivery", // Sesuaikan agar delivery tetap "Delivery"
-      }[orderData.shipping_method] || "Metode pengiriman tidak dikenali",
 
     name: orderData.user_name,
     email: orderData.user_email,

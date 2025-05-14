@@ -387,9 +387,9 @@ const requestPasswordReset = async (req, res) => {
     });
 
     await transporter.sendMail({
-      from: `"Dukungan Cultivo" <${process.env.EMAIL_USER}>`,
+      from: `"Dukungan Faza Frame" <${process.env.EMAIL_USER}>`,
       to: email,
-      subject: "Reset Kata Sandi Anda - Cultivo",
+      subject: "Reset Kata Sandi Anda - Faza Frame",
       html: `
         <div style="max-width: 500px; margin: auto; font-family: Arial, sans-serif; background-color: #121212; color: white; padding: 20px; border-radius: 8px; text-align: center;">
           <h2 style="color: white;">Lupa kata sandi Anda?</h2>
@@ -409,7 +409,7 @@ const requestPasswordReset = async (req, res) => {
           </p>
     
           <hr style="border: none; border-top: 1px solid #444; margin: 20px 0;">
-          <p style="font-size: 12px; color: gray;">© 2025 Cultivo. Semua hak dilindungi.</p>
+          <p style="font-size: 12px; color: gray;">© 2025 Faza Frame. Semua hak dilindungi.</p>
         </div>
       `,
     });

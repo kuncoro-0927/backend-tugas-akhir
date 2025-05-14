@@ -2,6 +2,10 @@ const midtransClient = require("midtrans-client");
 const { query } = require("../config/database.js");
 const path = require("path");
 const generateInvoicePDF = require("../utils/InvoiceGenerator");
+const {
+  sendOrderConfirmationEmail,
+} = require("../services/emailOrderSuccess.js");
+
 let snap = new midtransClient.Snap({
   isProduction: false, //sandbox
   serverKey: process.env.MIDTRANS_SERVER_KEY,
@@ -272,8 +276,8 @@ exports.handlePaymentCallback = async (req, res) => {
           bank = ?,
           payment_method_display = ?,
           updated_at = CURRENT_TIMESTAMP()
-        WHERE order_id = ?
-      `;
+        WHERE order_id = ?`;
+
       await query(updateTransactionQuery, [
         transaction_id,
         newStatus,
@@ -294,8 +298,8 @@ exports.handlePaymentCallback = async (req, res) => {
           order_id, transaction_id, transaction_status, payment_type,
           gross_amount, transaction_time, settlement_time, expiry_time,
           status_message, bank, payment_method_display, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP())
-      `;
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP())`;
+
       await query(insertTransactionQuery, [
         order_id,
         transaction_id,
@@ -316,8 +320,7 @@ exports.handlePaymentCallback = async (req, res) => {
       const updateOrderQuery = `
         UPDATE orders
         SET status = 'paid', updated_at = CURRENT_TIMESTAMP()
-        WHERE order_id = ?
-      `;
+        WHERE order_id = ?`;
       await query(updateOrderQuery, [order_id]);
 
       // Cari user_id dari orders
@@ -330,8 +333,7 @@ exports.handlePaymentCallback = async (req, res) => {
         // Hapus semua cart item
         const deleteCartItemsQuery = `
           DELETE FROM carts
-          WHERE user_id = ?
-        `;
+          WHERE user_id = ?`;
         await query(deleteCartItemsQuery, [userId]);
       }
 
@@ -345,11 +347,43 @@ exports.handlePaymentCallback = async (req, res) => {
 
         const updateInvoiceQuery = `
           UPDATE orders SET invoice_url = ?, updated_at = CURRENT_TIMESTAMP()
-          WHERE order_id = ?
-        `;
+          WHERE order_id = ?`;
+
         await query(updateInvoiceQuery, [invoiceUrl, order_id]);
 
         console.log("Invoice URL saved:", invoiceUrl);
+
+        // Ambil detail email dan nama user untuk dikirimkan email
+        const getEmailQuery = `
+          SELECT u.email, s.shipping_firstname
+          FROM orders o
+          JOIN users u ON o.user_id = u.id
+          JOIN order_shipping_details s ON o.order_id = s.order_id
+          WHERE o.order_id = ?`;
+        const [emailResult] = await query(getEmailQuery, [order_id]);
+
+        if (emailResult && emailResult.email) {
+          const email = emailResult.email;
+          const name = emailResult.shipping_firstname || "Pelanggan";
+
+          // Kirim email konfirmasi
+          try {
+            try {
+              await sendOrderConfirmationEmail(
+                email,
+                order_id,
+                name,
+                invoiceUrl
+              );
+              console.log("Email konfirmasi berhasil dikirim ke:", email);
+            } catch (emailError) {
+              console.error("Gagal mengirim email konfirmasi:", emailError);
+            }
+            console.log("Email konfirmasi berhasil dikirim ke:", email);
+          } catch (emailError) {
+            console.error("Gagal mengirim email konfirmasi:", emailError);
+          }
+        }
       } catch (pdfError) {
         console.error("Gagal generate invoice:", pdfError);
       }

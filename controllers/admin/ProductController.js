@@ -54,33 +54,47 @@ const getAllProducts = async (req, res) => {
 };
 
 const updateProduct = async (req, res) => {
-  const { id } = req.params; // Mengambil ID produk dari URL
+  const { id } = req.params;
   const { name, description, price, category, size, weight } = req.body;
-  const image_url = req.file ? `/uploads/${req.file.filename}` : null;
 
   try {
-    // Jika ada gambar baru, hapus gambar lama terlebih dahulu (jika ada)
-    if (image_url) {
-      const [product] = await query(
-        "SELECT image_url FROM products WHERE id = ?",
-        [id]
-      );
+    // Ambil data produk lama
+    const [product] = await query(
+      "SELECT image_url FROM products WHERE id = ?",
+      [id]
+    );
+
+    let image_url;
+
+    if (req.file) {
+      // Jika ada gambar baru, set image_url baru
+      image_url = `/uploads/${req.file.filename}`;
+
+      // Hapus gambar lama jika ada
       if (product.image_url) {
         const oldImagePath = path.join(
           __dirname,
           "../../public",
           product.image_url
         );
-        fs.unlinkSync(oldImagePath); // Menghapus gambar lama dari server
+
+        // Pastikan file benar-benar ada sebelum dihapus
+        if (fs.existsSync(oldImagePath)) {
+          fs.unlinkSync(oldImagePath);
+        }
       }
+    } else {
+      // Tidak ada gambar baru, gunakan gambar lama
+      image_url = product.image_url;
     }
 
-    // Update produk dengan data baru
+    // Update produk
     const updateQuery = `
       UPDATE products
       SET name = ?, description = ?, price = ?, weight_gram = ?, image_url = ?, category_id = ?, size = ?, updated_at = NOW()
       WHERE id = ?
     `;
+
     const updateValues = [
       name,
       description,
@@ -96,9 +110,10 @@ const updateProduct = async (req, res) => {
 
     res.status(200).json({ msg: "Produk berhasil diperbarui", image_url });
   } catch (error) {
-    res
-      .status(500)
-      .json({ msg: "Gagal memperbarui produk", error: error.message });
+    res.status(500).json({
+      msg: "Gagal memperbarui produk",
+      error: error.message,
+    });
   }
 };
 

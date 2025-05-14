@@ -441,11 +441,13 @@ function generateInvoiceHTML(order) {
                             </tr>
                             <tr>
                <td style="font-size: 12px; font-family: 'Open Sans', sans-serif; color: #5b5b5b; line-height: 20px; vertical-align: top;">
-  ${
-    order.shippingMethod === "Pickup"
-      ? `${order.shippingEmail}<br>${order.customerName}<br>${order.shippingPhone}`
-      : `${order.shippingEmail}<br>${order.customerName}<br>${order.shippingAddress}<br>${order.shippingProvince}<br>${order.shippingPostalCode}, ${order.shippingCity}<br>${order.shippingPhone}`
-  }
+
+   ${order.shippingEmail}<br>${order.customerName}<br>${
+    order.shippingAddress
+  }<br>${order.shippingProvince}<br>${order.shippingPostalCode}, ${
+    order.shippingCity
+  }<br>${order.shippingPhone}
+ 
 </td>
 
 
@@ -472,12 +474,9 @@ function generateInvoiceHTML(order) {
                             </tr>
                             <tr>
                               <td style="font-size: 12px; font-family: 'Open Sans', sans-serif; color: #5b5b5b; line-height: 20px; vertical-align: top;">
-  ${order.shippingMethod}<br>
-  ${
-    order.shippingMethod === "delivery"
-      ? `${order.shippingCourier}<br> Estimasi: ${order.shippingEtd}`
-      : ""
-  }
+  
+    ${order.shippingCourier}<br> Estimasi: ${order.shippingEtd}
+  
 </td>
 
                             </tr>

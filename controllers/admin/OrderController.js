@@ -15,7 +15,6 @@ const generateOrderCode = () => {
 const createOrder = async (req, res) => {
   const {
     user_id,
-    shippingMethod,
     subtotal,
     shipping_fee,
     promo_code,
@@ -28,7 +27,7 @@ const createOrder = async (req, res) => {
     // Step 1: Insert into 'orders' table
     const order_id = uuidv4(); // You should implement your order ID generator
     const order_code = generateOrderCode(); // You should implement your order code generator
-    const admin_fee = shippingMethod === "delivery" ? 2000 : 0;
+    const admin_fee = 2000;
 
     const cleanSubtotal = Number(subtotal) || 0;
     const cleanDiscount = Number(discount_amount) || 0;
@@ -38,13 +37,13 @@ const createOrder = async (req, res) => {
       cleanSubtotal - cleanDiscount + admin_fee + cleanShipping;
 
     const orderSql = `
-      INSERT INTO orders (order_id, user_id, shipping_method, subtotal, admin_fee, shipping_fee, total_amount, promo_code, discount_amount, order_code)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO orders (order_id, user_id, subtotal, admin_fee, shipping_fee, total_amount, promo_code, discount_amount, order_code)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
     await query(orderSql, [
       order_id,
       user_id,
-      shippingMethod,
+
       cleanSubtotal,
       admin_fee,
       cleanShipping,
@@ -71,8 +70,8 @@ const createOrder = async (req, res) => {
 
     // Step 3: Insert into 'order_shipping_details' table
     const shippingDetailsSql = `
-      INSERT INTO order_shipping_details (order_id, shipping_firstname, shipping_lastname, shipping_phone, shipping_address, province, city, postal_code, shipping_method, courier, etd, shipping_cost)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO order_shipping_details (order_id, shipping_firstname, shipping_lastname, shipping_phone, shipping_address, province, city, postal_code, courier, etd, shipping_cost)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
     await query(shippingDetailsSql, [
       order_id,
@@ -83,7 +82,6 @@ const createOrder = async (req, res) => {
       shipping_details.province,
       shipping_details.city,
       shipping_details.postal_code,
-      shipping_details.shipping_method,
       shipping_details.courier,
       shipping_details.etd,
       shipping_details.shipping_cost,
@@ -108,7 +106,6 @@ const getRecentOrders = async (req, res) => {
     const sql = `
    SELECT 
   o.order_code,
-  o.shipping_method,
   o.status,
   u.name AS user_name,
   o.total_amount
@@ -138,7 +135,6 @@ const getAllOrders = async (req, res) => {
    SELECT 
      o.id,
   o.order_code,
-  o.shipping_method,
   o.status,
     o.tracking_number,
   u.name AS user_name,
@@ -288,6 +284,83 @@ const updateTrackingNumber = async (req, res) => {
   }
 };
 
+const updateOrder = async (req, res) => {
+  const { id } = req.params; // Ambil order_id dari params
+  const { status, tracking_number, promo_code, discount_amount } = req.body; // Ambil data yang diubah
+
+  // Validasi status (misalnya hanya 'pending', 'paid', 'shipped' yang bisa diubah)
+  const validStatuses = ["pending", "paid", "shipped", "completed"];
+  if (status && !validStatuses.includes(status)) {
+    return res
+      .status(400)
+      .json({ message: "Status yang dipilih tidak valid." });
+  }
+
+  try {
+    const sql = `
+  UPDATE orders
+  SET 
+    status = COALESCE(?, status),
+    tracking_number = COALESCE(?, tracking_number),
+    promo_code = COALESCE(NULLIF(?, ''), promo_code),  -- ganti '' menjadi NULL
+    discount_amount = COALESCE(NULLIF(?, ''), discount_amount),
+    updated_at = NOW()
+  WHERE id = ?
+`;
+
+    const result = await query(sql, [
+      status,
+      tracking_number,
+      promo_code,
+      discount_amount,
+      id,
+    ]);
+
+    if (result.affectedRows === 0) {
+      return res
+        .status(404)
+        .json({ message: "Order tidak ditemukan atau tidak ada perubahan." });
+    }
+
+    return res.status(200).json({ message: "Order berhasil diperbarui." });
+  } catch (error) {
+    console.error("Error updating order:", error);
+    return res.status(500).json({
+      message: "Terjadi kesalahan pada server.",
+      error: error.message,
+    });
+  }
+};
+
+const getOrderById = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const [order] = await query(
+      `SELECT 
+        orders.*, 
+        users.email AS user_email
+      FROM orders 
+      JOIN users ON orders.user_id = users.id 
+      WHERE orders.id = ?`,
+      [id]
+    );
+
+    if (!order) {
+      return res.status(404).json({ msg: "Order tidak ditemukan" });
+    }
+
+    // Tambahkan flag apakah order boleh diedit
+    order.isEditable = order.status !== "completed";
+
+    res.json(order);
+  } catch (error) {
+    res.status(500).json({
+      msg: "Gagal mengambil detail order",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   getRecentOrders,
   createOrder,
@@ -296,4 +369,6 @@ module.exports = {
   getAllOrderShipping,
   getAllTransactionOrders,
   updateTrackingNumber,
+  updateOrder,
+  getOrderById,
 };

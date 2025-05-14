@@ -20,11 +20,11 @@ const sendOTPEmail = async (email, otp) => {
   const mailOptions = {
     from: process.env.EMAIL_USER,
     to: email,
-    subject: `${otp} Kode masuk dari Cultivo`,
+    subject: `${otp} Kode masuk dari Faza Frame`,
     html: `
       <div style="background-color: #121212; padding: 20px; color: white; font-family: Arial, sans-serif; text-align: center;">
        <div style="font-size: 28px; font-weight: bold; margin-bottom: 20px;">
-    Cultivo
+    Faza Frame
   </div>
         <div style="background: #1E1E1E; padding: 20px; border-radius: 8px;">
           <h2>Selamat Datang Kembali!</h2>
@@ -38,7 +38,7 @@ const sendOTPEmail = async (email, otp) => {
           <a href="${supportLink}" style="color: #4DA8DA;">hubungi kami</a> dan kami akan siap membantu.
         </p>
         <p style="font-size: 12px; margin-top: 20px; color: gray;">
-          &copy; 2025 Cultivo. Hak cipta dilindungi oleh undang-undang.
+          &copy; 2025 Faza Frame. Hak cipta dilindungi oleh undang-undang.
         </p>
       </div>
     `,
