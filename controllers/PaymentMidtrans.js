@@ -12,6 +12,15 @@ let snap = new midtransClient.Snap({
   clientKey: process.env.MIDTRANS_CLIENT_KEY,
 });
 
+const coreApi = new midtransClient.CoreApi({
+  isProduction: false,
+  serverKey: process.env.MIDTRANS_SERVER_KEY,
+  clientKey: process.env.MIDTRANS_CLIENT_KEY,
+});
+
+console.log("Server Key:", process.env.MIDTRANS_SERVER_KEY);
+console.log("Client Key:", process.env.MIDTRANS_CLIENT_KEY);
+
 exports.processPayment = async (req, res) => {
   const {
     order_id,
@@ -23,7 +32,7 @@ exports.processPayment = async (req, res) => {
     promo,
     promocode,
   } = req.body;
-  console.log("REQ BODY:", req.body);
+
   const cartItems = customer?.cartItems;
 
   if (!Array.isArray(cartItems)) {
@@ -65,7 +74,6 @@ exports.processPayment = async (req, res) => {
     });
   }
 
-  console.log("itemDetails:", itemDetails);
   const subtotal = cartItems.reduce(
     (sum, item) => sum + parseInt(item.price) * item.quantity,
     0
@@ -115,7 +123,7 @@ exports.processPayment = async (req, res) => {
         finish: `${process.env.FRONTEND_URL}/payment/success/${order_id}`,
       },
     };
-    console.log("params", paymentParams);
+
     const transaction = await snap.createTransaction(paymentParams);
 
     const insertQuery = `
@@ -169,15 +177,27 @@ exports.processPayment = async (req, res) => {
 
 exports.verifyPayment = async (req, res) => {
   const { order_id } = req.params;
+  console.log("Verifying payment for order_id:", order_id);
 
   try {
-    const transactionStatus = await snap.transaction.status(order_id);
+    const transactionStatus = await coreApi.transaction.status(order_id);
+    console.log("Transaction status response:", transactionStatus);
+
     return res.json({
       message: "Payment verification successful",
       status: transactionStatus,
     });
   } catch (error) {
-    console.error("Error verifying payment:", error);
+    console.error(
+      "Error verifying payment:",
+      error?.message,
+      error?.ApiResponse
+    );
+    if (error?.httpStatusCode === 404) {
+      return res
+        .status(404)
+        .json({ error: "Transaction not found in Midtrans" });
+    }
     return res.status(500).json({ error: "Failed to verify payment" });
   }
 };
@@ -337,10 +357,23 @@ exports.handlePaymentCallback = async (req, res) => {
         await query(deleteCartItemsQuery, [userId]);
       }
 
+      // Tandai produk sebagai SOLD
+      const getProductIdsQuery = `
+        SELECT product_id FROM order_items WHERE order_id = ?`;
+      const productResults = await query(getProductIdsQuery, [order_id]);
+
+      if (productResults.length > 0) {
+        const productIds = productResults.map((item) => item.product_id);
+        const updateProductsQuery = `
+          UPDATE products SET status = 'sold', updated_at = CURRENT_TIMESTAMP()
+          WHERE id IN (${productIds.map(() => "?").join(",")})`;
+
+        await query(updateProductsQuery, productIds);
+      }
+
       // Generate PDF Invoice dan simpan URL-nya ke kolom invoice_url
       try {
         const pdfPath = await generateInvoicePDF(order_id);
-        console.log("Invoice generated:", pdfPath);
 
         const fileName = path.basename(pdfPath);
         const invoiceUrl = `/invoices/${fileName}`;
@@ -368,18 +401,7 @@ exports.handlePaymentCallback = async (req, res) => {
 
           // Kirim email konfirmasi
           try {
-            try {
-              await sendOrderConfirmationEmail(
-                email,
-                order_id,
-                name,
-                invoiceUrl
-              );
-              console.log("Email konfirmasi berhasil dikirim ke:", email);
-            } catch (emailError) {
-              console.error("Gagal mengirim email konfirmasi:", emailError);
-            }
-            console.log("Email konfirmasi berhasil dikirim ke:", email);
+            await sendOrderConfirmationEmail(email, order_id, name, invoiceUrl);
           } catch (emailError) {
             console.error("Gagal mengirim email konfirmasi:", emailError);
           }

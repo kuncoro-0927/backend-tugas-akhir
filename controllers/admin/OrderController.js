@@ -1,6 +1,7 @@
 const { query } = require("../../config/database");
+const { database } = require("../../config/database");
 const { v4: uuidv4 } = require("uuid"); // Menggunakan UUID untuk token (opsional)
-
+const { sendShippedEmail } = require("../../services/emailService");
 const generateOrderCode = () => {
   const prefix = "FZA";
   const randomNumber = Math.floor(Math.random() * 1000000)
@@ -22,7 +23,7 @@ const createOrder = async (req, res) => {
     products, // List of products to be added to order_items
     shipping_details, // Shipping details to be added to order_shipping_details
   } = req.body;
-  console.log(shipping_details);
+
   try {
     // Step 1: Insert into 'orders' table
     const order_id = uuidv4(); // You should implement your order ID generator
@@ -105,8 +106,10 @@ const getRecentOrders = async (req, res) => {
   try {
     const sql = `
    SELECT 
+   o.id,
   o.order_code,
   o.status,
+    o.created_at,
   u.name AS user_name,
   o.total_amount
 FROM orders o
@@ -129,32 +132,95 @@ LIMIT 3;
   }
 };
 
+// const getAllOrders = async (req, res) => {
+//   try {
+//     const sql = `
+//    SELECT
+//      o.id,
+//   o.order_code,
+//   o.status,
+//     o.tracking_number,
+//   u.name AS user_name,
+//    u.firstname,
+//       u.lastname,
+//    u.email AS user_email,
+//   o.total_amount
+// FROM orders o
+// JOIN users u ON o.user_id = u.id
+// WHERE o.status IN ('pending', 'paid', 'shipped', 'completed')
+// ORDER BY o.created_at DESC;
+
+//       `;
+
+//     const orders = await query(sql);
+
+//     return res.json(orders);
+//   } catch (error) {
+//     console.error("Error getting order details:", error);
+//     return res
+//       .status(500)
+//       .json({ message: "Internal Server Error", error: error.message });
+//   }
+// };
+
 const getAllOrders = async (req, res) => {
   try {
     const sql = `
-   SELECT 
-     o.id,
-  o.order_code,
-  o.status,
-    o.tracking_number,
-  u.name AS user_name,
-   u.firstname,
-      u.lastname,
-   u.email AS user_email,
-  o.total_amount
-FROM orders o
-JOIN users u ON o.user_id = u.id
-WHERE o.status IN ('pending', 'paid', 'shipped', 'completed')
-ORDER BY o.created_at DESC;
+      SELECT 
+        o.id,
+        o.order_code,
+        o.status,
+        o.tracking_number,
+        u.name AS user_name,
+        u.firstname,
+        u.lastname,
+        u.email AS user_email,
+        o.total_amount,
 
+        -- shipping details
+        osd.shipping_firstname,
+        osd.shipping_lastname,
+        osd.shipping_phone,
+        osd.shipping_address,
+        osd.province,
+        osd.city,
+        osd.postal_code,
+        osd.courier,
+        osd.etd,
+        osd.shipping_cost,
 
-      `;
+        -- item details digabung
+        GROUP_CONCAT(
+          JSON_OBJECT(
+            'product_id', oi.product_id,
+            'product_name', oi.product_name,
+            'price', oi.price,
+            'quantity', oi.quantity,
+            'total', oi.total
+          )
+        ) AS items
+
+      FROM orders o
+      JOIN users u ON o.user_id = u.id
+      LEFT JOIN order_shipping_details osd ON o.order_id = osd.order_id
+      LEFT JOIN order_items oi ON o.order_id = oi.order_id
+
+      WHERE o.status IN ('pending', 'paid', 'shipped', 'completed')
+      GROUP BY o.id
+      ORDER BY o.created_at DESC;
+    `;
 
     const orders = await query(sql);
 
-    return res.json(orders);
+    // Ubah kolom `items` (dari string JSON) menjadi array
+    const parsedOrders = orders.map((order) => ({
+      ...order,
+      items: order.items ? JSON.parse(`[${order.items}]`) : [],
+    }));
+
+    return res.json(parsedOrders);
   } catch (error) {
-    console.error("Error getting order details:", error);
+    console.error("Error getting full order data:", error);
     return res
       .status(500)
       .json({ message: "Internal Server Error", error: error.message });
@@ -269,13 +335,36 @@ const updateTrackingNumber = async (req, res) => {
   }
 
   try {
-    // Update tracking number dan status jadi 'shipped' jika status saat ini 'paid'
-    const result = await query(
+    // Ambil data pesanan untuk cek status dan ambil email user
+    const [order] = await query(
+      `SELECT orders.status, orders.order_code, orders.invoice_url, users.email, users.name 
+       FROM orders 
+       JOIN users ON orders.user_id = users.id 
+       WHERE orders.id = ?`,
+      [orderId]
+    );
+
+    if (!order) {
+      return res.status(404).json({ error: "Pesanan tidak ditemukan" });
+    }
+
+    // Update tracking number dan status jadi 'shipped' jika status = 'paid'
+    await query(
       `UPDATE orders 
        SET tracking_number = ?, status = CASE WHEN status = 'paid' THEN 'shipped' ELSE status END
        WHERE id = ?`,
       [trackingNumber, orderId]
     );
+
+    // Jika status sebelumnya 'paid', kirim email notifikasi
+    if (order.status === "paid") {
+      await sendShippedEmail(
+        order.email,
+        order.order_code,
+        order.name,
+        order.invoice_url
+      );
+    }
 
     res.json({ message: "Tracking number dan status berhasil diupdate" });
   } catch (error) {
@@ -284,64 +373,219 @@ const updateTrackingNumber = async (req, res) => {
   }
 };
 
-const updateOrder = async (req, res) => {
-  const { id } = req.params; // Ambil order_id dari params
-  const { status, tracking_number, promo_code, discount_amount } = req.body; // Ambil data yang diubah
+// const updateAllOrder = async (req, res) => {
+//   const { id } = req.params; // Ambil order_id dari params
+//   const { status, tracking_number, promo_code, discount_amount } = req.body; // Ambil data yang diubah
 
-  // Validasi status (misalnya hanya 'pending', 'paid', 'shipped' yang bisa diubah)
+//   // Validasi status (misalnya hanya 'pending', 'paid', 'shipped' yang bisa diubah)
+//   const validStatuses = ["pending", "paid", "shipped", "completed"];
+//   if (status && !validStatuses.includes(status)) {
+//     return res
+//       .status(400)
+//       .json({ message: "Status yang dipilih tidak valid." });
+//   }
+
+//   try {
+//     const sql = `
+//   UPDATE orders
+//   SET
+//     status = COALESCE(?, status),
+//     tracking_number = COALESCE(?, tracking_number),
+//     promo_code = COALESCE(NULLIF(?, ''), promo_code),  -- ganti '' menjadi NULL
+//     discount_amount = COALESCE(NULLIF(?, ''), discount_amount),
+//     updated_at = NOW()
+//   WHERE id = ?
+// `;
+
+//     const result = await query(sql, [
+//       status,
+//       tracking_number,
+//       promo_code,
+//       discount_amount,
+//       id,
+//     ]);
+
+//     if (result.affectedRows === 0) {
+//       return res
+//         .status(404)
+//         .json({ message: "Order tidak ditemukan atau tidak ada perubahan." });
+//     }
+
+//     return res.status(200).json({ message: "Order berhasil diperbarui." });
+//   } catch (error) {
+//     console.error("Error updating order:", error);
+//     return res.status(500).json({
+//       message: "Terjadi kesalahan pada server.",
+//       error: error.message,
+//     });
+//   }
+// };
+
+const updateOrder = async (req, res) => {
+  const { id } = req.params; // ID orders table
+  const {
+    status,
+    tracking_number,
+    promo_code,
+    discount_amount,
+    // Shipping detail
+    shipping_firstname,
+    shipping_lastname,
+    shipping_phone,
+    shipping_address,
+    province,
+    city,
+    postal_code,
+    courier,
+    etd,
+    shipping_cost,
+    // Items (optional)
+    items = [],
+  } = req.body;
+
   const validStatuses = ["pending", "paid", "shipped", "completed"];
   if (status && !validStatuses.includes(status)) {
-    return res
-      .status(400)
-      .json({ message: "Status yang dipilih tidak valid." });
+    return res.status(400).json({ message: "Status tidak valid." });
   }
 
+  const connection = await database.getConnection();
+  await connection.beginTransaction();
+
   try {
-    const sql = `
-  UPDATE orders
-  SET 
-    status = COALESCE(?, status),
-    tracking_number = COALESCE(?, tracking_number),
-    promo_code = COALESCE(NULLIF(?, ''), promo_code),  -- ganti '' menjadi NULL
-    discount_amount = COALESCE(NULLIF(?, ''), discount_amount),
-    updated_at = NOW()
-  WHERE id = ?
-`;
+    console.log("🔍 Mencari order berdasarkan ID...");
+    const [order] = await connection.query(
+      `SELECT order_id FROM orders WHERE id = ?`,
+      [id]
+    );
 
-    const result = await query(sql, [
-      status,
-      tracking_number,
-      promo_code,
-      discount_amount,
-      id,
-    ]);
-
-    if (result.affectedRows === 0) {
-      return res
-        .status(404)
-        .json({ message: "Order tidak ditemukan atau tidak ada perubahan." });
+    if (!order.length) {
+      console.log("❌ Order tidak ditemukan.");
+      return res.status(404).json({ message: "Order tidak ditemukan." });
     }
 
-    return res.status(200).json({ message: "Order berhasil diperbarui." });
+    const orderId = order[0].order_id;
+    console.log("✅ orderId ditemukan:", orderId);
+
+    console.log("📦 Mengupdate data orders...");
+    await connection.query(
+      `
+      UPDATE orders SET
+        status = COALESCE(?, status),
+        tracking_number = COALESCE(?, tracking_number),
+        promo_code = COALESCE(NULLIF(?, ''), promo_code),
+        discount_amount = COALESCE(NULLIF(?, ''), discount_amount),
+        updated_at = NOW()
+      WHERE id = ?`,
+      [status, tracking_number, promo_code, discount_amount, id]
+    );
+    console.log("✅ Update orders selesai.");
+
+    console.log("📦 Mengupdate shipping details...");
+    await connection.query(
+      `
+      UPDATE order_shipping_details SET
+        shipping_firstname = COALESCE(?, shipping_firstname),
+        shipping_lastname = COALESCE(?, shipping_lastname),
+        shipping_phone = COALESCE(?, shipping_phone),
+        shipping_address = COALESCE(?, shipping_address),
+        province = COALESCE(?, province),
+        city = COALESCE(?, city),
+        postal_code = COALESCE(?, postal_code),
+        courier = COALESCE(?, courier),
+        etd = COALESCE(?, etd),
+        shipping_cost = COALESCE(?, shipping_cost)
+      WHERE order_id = ?`,
+      [
+        shipping_firstname,
+        shipping_lastname,
+        shipping_phone,
+        shipping_address,
+        province,
+        city,
+        postal_code,
+        courier,
+        etd,
+        shipping_cost,
+        orderId,
+      ]
+    );
+    console.log("✅ Update shipping selesai.");
+
+    if (items.length > 0) {
+      console.log("🗑 Menghapus order_items lama...");
+      await connection.query(`DELETE FROM order_items WHERE order_id = ?`, [
+        orderId,
+      ]);
+      console.log("✅ order_items lama dihapus.");
+
+      console.log("➕ Menambahkan order_items baru...");
+      for (const item of items) {
+        console.log("🛒 Menambahkan item:", item.product_name);
+        await connection.query(
+          `INSERT INTO order_items (order_id, product_id, product_name, price, quantity, total)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [
+            orderId,
+            item.product_id,
+            item.product_name,
+            item.price,
+            item.quantity,
+            item.total,
+          ]
+        );
+      }
+      console.log("✅ Semua order_items baru ditambahkan.");
+    } else {
+      console.log("ℹ️ Tidak ada items yang dikirim. Skip update order_items.");
+    }
+
+    await connection.commit();
+    connection.release();
+
+    console.log("🎉 Order berhasil diperbarui.");
+    return res
+      .status(200)
+      .json({ message: "Order dan detail berhasil diperbarui." });
   } catch (error) {
-    console.error("Error updating order:", error);
+    await connection.rollback();
+    connection.release();
+    console.error("❗ Error updating full order:", error);
     return res.status(500).json({
-      message: "Terjadi kesalahan pada server.",
+      message: "Terjadi kesalahan saat update order.",
       error: error.message,
     });
   }
 };
 
 const getOrderById = async (req, res) => {
-  const { id } = req.params;
+  const { id } = req.params; // id = integer orders.id
+
   try {
+    // Ambil data utama order + user + shipping detail berdasarkan orders.id (integer)
     const [order] = await query(
       `SELECT 
-        orders.*, 
-        users.email AS user_email
-      FROM orders 
-      JOIN users ON orders.user_id = users.id 
-      WHERE orders.id = ?`,
+        o.*, 
+        u.name AS name,
+        u.firstname AS user_firstname,
+        u.lastname AS user_lastname,
+        u.email AS user_email,
+        u.phone AS user_phone,
+        u.address AS user_address,
+        s.shipping_firstname,
+        s.shipping_lastname,
+        s.email AS shipping_email,
+        s.shipping_phone,
+        s.shipping_address,
+        s.province,
+        s.city,
+        s.postal_code,
+        s.courier,
+        s.etd,
+        s.shipping_cost
+      FROM orders o
+      JOIN users u ON o.user_id = u.id
+      LEFT JOIN order_shipping_details s ON o.order_id = s.order_id
+      WHERE o.id = ?`,
       [id]
     );
 
@@ -349,15 +593,81 @@ const getOrderById = async (req, res) => {
       return res.status(404).json({ msg: "Order tidak ditemukan" });
     }
 
+    // Ambil semua item dari order_items berdasarkan order_id UUID string dari order.order_id
+    const items = await query(
+      `SELECT 
+    oi.*, 
+    p.name AS product_name,
+    p.image_url AS product_image,
+    c.id AS category_id,
+    c.name AS category_name
+  FROM order_items oi
+  JOIN products p ON oi.product_id = p.id
+  LEFT JOIN categories c ON p.category_id = c.id
+  WHERE oi.order_id = ?`,
+      [order.order_id]
+    );
+
     // Tambahkan flag apakah order boleh diedit
     order.isEditable = order.status !== "completed";
 
+    // Gabungkan items ke dalam object utama
+    order.items = items;
+
     res.json(order);
   } catch (error) {
+    console.error("Gagal ambil order:", error);
     res.status(500).json({
       msg: "Gagal mengambil detail order",
       error: error.message,
     });
+  }
+};
+
+const deleteOrderById = async (req, res) => {
+  const { id } = req.params; // ID dari tabel orders (integer)
+
+  const connection = await database.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    // Ambil order_id UUID untuk hapus anak-anaknya
+    const [rows] = await connection.query(
+      "SELECT order_id FROM orders WHERE id = ?",
+      [id]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ msg: "Order tidak ditemukan" });
+    }
+
+    const orderId = rows[0].order_id;
+
+    // Hapus relasi anak-anak dulu
+    await connection.query("DELETE FROM order_items WHERE order_id = ?", [
+      orderId,
+    ]);
+    await connection.query(
+      "DELETE FROM order_shipping_details WHERE order_id = ?",
+      [orderId]
+    );
+    await connection.query("DELETE FROM transactions WHERE order_id = ?", [
+      orderId,
+    ]); // Jika ada
+    // Tambahkan jika ada tabel lain yang terkait
+
+    // Baru hapus orders
+    await connection.query("DELETE FROM orders WHERE id = ?", [id]);
+
+    await connection.commit();
+    res.json({ msg: "Order berhasil dihapus" });
+  } catch (error) {
+    await connection.rollback();
+    console.error("Gagal menghapus order:", error);
+    res
+      .status(500)
+      .json({ msg: "Gagal menghapus order", error: error.message });
+  } finally {
+    connection.release();
   }
 };
 
@@ -371,4 +681,5 @@ module.exports = {
   updateTrackingNumber,
   updateOrder,
   getOrderById,
+  deleteOrderById,
 };

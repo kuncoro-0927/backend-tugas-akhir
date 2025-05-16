@@ -47,4 +47,70 @@ const sendOTPEmail = async (email, otp) => {
   await transporter.sendMail(mailOptions);
 };
 
-module.exports = { sendOTPEmail };
+const sendShippedEmail = async (email, order_code, name, invoice_url) => {
+  const backendUrl = process.env.BACKEND_URL || "https://your-backend-url.com";
+  const invoiceUrl = `${backendUrl}${invoice_url}`;
+
+  const mailOptions = {
+    from: `"Faza Frame Pacitan" <${process.env.EMAIL_USER}>`,
+    to: email,
+    subject: `Pesanan ${order_code} Telah Dikirim`,
+    html: `
+      <!DOCTYPE html>
+      <html lang="id">
+      <head>
+        <meta charset="UTF-8" />
+        <title>Pesanan Dikirim</title>
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            padding: 20px;
+            max-width: 600px;
+            margin: auto;
+          }
+          .button {
+            display: inline-block;
+            padding: 10px 16px;
+            background-color: #007bff;
+            color: white !important;
+            text-decoration: none;
+            border-radius: 5px;
+            margin-top: 10px;
+          }
+        </style>
+      </head>
+      <body>
+        <h3>Halo ${name},</h3>
+        <p>
+          Kami dengan senang hati menginformasikan bahwa pesanan Anda dengan kode
+          <strong>${order_code}</strong> telah berhasil kami kirim melalui jasa
+          pengiriman yang telah dipilih. Untuk melihat status pengiriman dan
+          nomor resi, silakan kunjungi halaman<strong>Pesanan</strong> Anda di website kami.
+        </p>
+       
+        <p>
+          Selain itu, Anda juga dapat mengunduh invoice pesanan melalui tombol di bawah ini:
+        </p>
+       <p>
+  <a href="${invoiceUrl}" target="_blank" style="color: #007bff; text-decoration: underline;">
+   Unduh Invoice
+  </a>
+</p>
+
+        <p>
+          Terima kasih telah mempercayakan pilihan bingkai Anda kepada <strong>Faza Frame Pacitan</strong>. 
+          Kami berharap produk kami dapat mempercantik ruangan Anda dan memberikan kesan yang tak terlupakan.
+        </p>
+        <br />
+        <p>Salam hangat,</p>
+        <strong>Tim Faza Frame Pacitan</strong>
+      </body>
+      </html>
+    `,
+  };
+
+  await transporter.sendMail(mailOptions);
+};
+
+module.exports = { sendOTPEmail, sendShippedEmail };

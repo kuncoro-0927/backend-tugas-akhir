@@ -126,7 +126,6 @@ const deleteCartItem = async (req, res) => {
 
 const getCartByUserId = async (req, res) => {
   const user_id = req.user.id;
-  console.log("User ID:", user_id);
 
   try {
     const result = await query(

@@ -111,7 +111,6 @@ const getOrderDetails = async (req, res) => {
       [orderId]
     );
 
-    console.log(orderItems);
     // Kembalikan data pesanan dan item produk
     res.status(200).json({ order, items: orderItems });
   } catch (error) {

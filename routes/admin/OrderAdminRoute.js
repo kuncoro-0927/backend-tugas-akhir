@@ -9,6 +9,7 @@ const {
   updateTrackingNumber,
   updateOrder,
   getOrderById,
+  deleteOrderById,
 } = require("../../controllers/admin/OrderController");
 const {
   createAdminPayment,
@@ -81,5 +82,12 @@ OrderAdminRoute.get(
   verifyAdminToken,
   checkRole(1),
   getOrderById
+);
+
+OrderAdminRoute.delete(
+  "/delete/order/:id",
+  verifyAdminToken,
+  checkRole(1),
+  deleteOrderById
 );
 module.exports = OrderAdminRoute;

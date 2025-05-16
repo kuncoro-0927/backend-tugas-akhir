@@ -3,9 +3,18 @@ const { query } = require("../../config/database");
 // Ambil semua kategori
 const getAllCategories = async (req, res) => {
   try {
-    const result = await query(
-      "SELECT id, name, created_at, updated_at FROM categories"
-    );
+    const result = await query(`
+      SELECT 
+        c.id,
+        c.name,
+        c.created_at,
+        c.updated_at,
+        COUNT(p.id) AS total_products
+      FROM categories c
+      LEFT JOIN products p ON c.id = p.category_id
+      GROUP BY c.id, c.name, c.created_at, c.updated_at
+    `);
+
     res.status(200).json({ categories: result });
   } catch (error) {
     res

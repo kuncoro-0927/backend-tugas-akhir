@@ -9,7 +9,6 @@ const generateOTP = () =>
 exports.verifyOTP = async (req, res) => {
   const { otp, otpToken } = req.body;
 
-  console.log("Token yang diterima di backend:", otpToken);
   try {
     // Verifikasi token OTP yang dikirimkan user
     const decoded = jwt.verify(otpToken, process.env.JWT_SECRET);

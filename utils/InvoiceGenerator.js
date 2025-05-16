@@ -34,7 +34,7 @@ async function generateInvoicePDF(orderId) {
   );
 
   const order = {
-    invoiceNumber: orderData.order_id,
+    invoiceNumber: orderData.order_code,
     createdAt: orderData.created_at,
     shippingEmail: shippingDetails.email,
     customerName: `${shippingDetails.shipping_firstname} ${shippingDetails.shipping_lastname}`,

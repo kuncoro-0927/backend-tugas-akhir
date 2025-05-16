@@ -20,7 +20,6 @@ const createProduct = async (req, res) => {
       .json({ msg: "Gagal menambahkan produk", error: error.message });
   }
 };
-
 const getAllProducts = async (req, res) => {
   try {
     const sql = `
@@ -28,6 +27,7 @@ const getAllProducts = async (req, res) => {
         p.id,
         p.name,
         p.description,
+            p.status,
         p.price,
         p.size,
         p.weight_gram,
@@ -41,9 +41,16 @@ const getAllProducts = async (req, res) => {
       ORDER BY p.created_at DESC
     `;
 
-    const products = await query(sql);
+    const countSql = `SELECT COUNT(*) AS total FROM products`;
 
-    return res.json(products);
+    const products = await query(sql);
+    const countResult = await query(countSql);
+    const totalProducts = countResult[0]?.total || 0;
+
+    return res.json({
+      total: totalProducts,
+      data: products,
+    });
   } catch (error) {
     console.error("Error getting products:", error);
     return res.status(500).json({
@@ -53,6 +60,43 @@ const getAllProducts = async (req, res) => {
   }
 };
 
+const getTopProducts = async (req, res) => {
+  try {
+    const sql = `
+      SELECT 
+        products.id AS product_id,
+        products.name AS product_name,
+        categories.name AS category_name,
+        products.image_url,
+        COUNT(transactions.id) AS total_transactions,
+        SUM(transactions.gross_amount) AS total_amount
+      FROM 
+        products
+      JOIN 
+        order_items ON products.id = order_items.product_id
+      JOIN 
+        transactions ON order_items.order_id = transactions.order_id
+         JOIN 
+          categories ON products.category_id = categories.id
+      WHERE 
+        transactions.transaction_status = 'success' 
+      GROUP BY 
+        products.id
+      ORDER BY 
+        total_transactions DESC
+      LIMIT 3;
+    `;
+    const result = await query(sql);
+
+    res.json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    console.error("Error fetching top product:", error);
+    res.status(500).json({ success: false, message: "Failed to fetch data" });
+  }
+};
 const updateProduct = async (req, res) => {
   const { id } = req.params;
   const { name, description, price, category, size, weight } = req.body;
@@ -136,7 +180,6 @@ const deleteProduct = async (req, res) => {
       try {
         await fs.access(imagePath); // Cek jika file ada
         await fs.unlink(imagePath); // Menghapus gambar dari server
-        console.log("File gambar berhasil dihapus:", imagePath);
       } catch (fileError) {
         console.warn(
           "File gambar tidak ditemukan, tidak dapat dihapus:",
@@ -179,10 +222,38 @@ const getProductById = async (req, res) => {
   }
 };
 
+const toggleProductStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Ambil status sekarang
+    const [product] = await query(`SELECT status FROM products WHERE id = ?`, [
+      id,
+    ]);
+
+    if (!product) {
+      return res.status(404).json({ message: "Product tidak ditemukan" });
+    }
+
+    const newStatus = product.status === "available" ? "sold" : "available";
+
+    await query(`UPDATE products SET status = ? WHERE id = ?`, [newStatus, id]);
+
+    return res.json({ message: "Status produk diperbarui", newStatus });
+  } catch (error) {
+    console.error("Error toggling produk status:", error);
+    return res.status(500).json({
+      message: "Internal Server Error",
+      error: error.message,
+    });
+  }
+};
 module.exports = {
   getAllProducts,
   createProduct,
   updateProduct,
   deleteProduct,
   getProductById,
+  getTopProducts,
+  toggleProductStatus,
 };

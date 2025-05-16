@@ -86,7 +86,7 @@ const registerUser = async (req, res) => {
 
 const loginUser = async (req, res) => {
   const { email, password } = req.body;
-  console.log("Request body:", req.body);
+
   if (!email) {
     return res.status(400).json({
       field: "email",
@@ -239,8 +239,6 @@ const refreshTokenHandler = async (req, res) => {
       sameSite: "strict",
       maxAge: 3600000, // 1 jam
     });
-    console.log("Refresh token ditemukan:", token);
-    console.log("Decoded refresh:", decoded);
 
     res.status(200).json({ accessToken: newToken });
   });

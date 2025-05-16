@@ -28,8 +28,6 @@ exports.generateInvoice = async (req, res) => {
       return res.status(404).json({ message: "Pesanan tidak ditemukan" });
     }
 
-    console.log("Order Data:", orderData);
-
     // 2. Ambil semua item pesanan dari DB (pastikan mengembalikan lebih dari satu jika ada)
     const orderItems = await query(
       `SELECT * FROM order_items WHERE order_id = ?`,
@@ -49,9 +47,6 @@ exports.generateInvoice = async (req, res) => {
 
     const transactionDetails = transactionDetailsResult[0];
 
-    console.log("Order Items:", orderItems); // Debug untuk melihat seluruh order items
-    console.log("Order details:", orderDetails);
-    console.log("Transaction details:", transactionDetails);
     if (!Array.isArray(orderItems) || orderItems.length === 0) {
       return res.status(404).json({ message: "Item pesanan tidak ditemukan" });
     }

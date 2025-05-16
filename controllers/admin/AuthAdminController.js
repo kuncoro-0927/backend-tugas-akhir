@@ -8,7 +8,6 @@ const generateOTP = () =>
 
 const loginAdmin = async (req, res) => {
   const { email, password } = req.body;
-  console.log("Request body:", req.body);
 
   if (!email) {
     return res.status(400).json({

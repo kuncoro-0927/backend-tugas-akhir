@@ -18,7 +18,7 @@ exports.createAdminPayment = async (req, res) => {
       shipping_cost,
       customer,
     } = req.body;
-    console.log(req.body);
+
     // Validasi wajib ada
     if (!order_id) {
       return res.status(400).json({ message: "order_id tidak boleh kosong" });
@@ -28,9 +28,7 @@ exports.createAdminPayment = async (req, res) => {
     let item_details = [
       ...customer.cartItems.map((item) => {
         // Log untuk setiap item dalam keranjang
-        console.log(
-          `Item: ${item.productName}, Price: ${item.price}, Quantity: ${item.quantity}`
-        );
+
         return {
           id: item.productId,
           name: item.productName,

@@ -38,7 +38,6 @@ const trackOrders = async () => {
           "UPDATE orders SET status = 'completed' WHERE order_code = ?",
           [order_code]
         );
-        console.log(`Order ${order_code} updated to 'completed'`);
       }
     }
   } catch (error) {

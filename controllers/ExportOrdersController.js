@@ -13,9 +13,6 @@ const exportOrder = async (req, res) => {
   const formattedStart = moment(start, "YYYY-MM-DD").format("YYYY-MM-DD");
   const formattedEnd = moment(end, "YYYY-MM-DD").format("YYYY-MM-DD");
 
-  // Debugging: log tanggal yang digunakan
-  console.log(`Start: ${formattedStart}, End: ${formattedEnd}`);
-
   try {
     const rows = await query(
       `
@@ -36,7 +33,6 @@ const exportOrder = async (req, res) => {
     if (orderList.length === 0) {
       return res.status(404).json({ message: "Tidak ada pesanan ditemukan." });
     }
-    console.log("Jumlah orders:", orderList.length);
 
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet("Orders");
