@@ -14,6 +14,7 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+// ✅ Email untuk pelanggan
 exports.sendOrderConfirmationEmail = async (
   email,
   orderCode,
@@ -44,6 +45,43 @@ exports.sendOrderConfirmationEmail = async (
         <br/>
         <p>Salam hangat,</p>
         <strong>Tim Faza Frame Pacitan</strong>
+      </div>
+    `,
+  };
+
+  await transporter.sendMail(mailOptions);
+};
+
+// ✅ Email notifikasi ke admin
+exports.sendAdminNotificationEmail = async (
+  orderCode,
+  customerName,
+  total,
+  invoiceUrl
+) => {
+  const fullInvoiceUrl = `${process.env.BACKEND_URL}${invoiceUrl}`;
+
+  const mailOptions = {
+    from: `"Faza Frame Pacitan" <${process.env.EMAIL_USER}>`,
+    to: process.env.ADMIN_EMAIL,
+    subject: `🔔 Pesanan Baru Dibayar - ${orderCode}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; line-height: 1.6;">
+        <h3>Halo Admin 👋</h3>
+        <p>Pesanan baru telah dibayar oleh <strong>${customerName}</strong>.</p>
+        <ul>
+          <li><strong>Kode Pesanan:</strong> ${orderCode}</li>
+          <li><strong>Total Bayar:</strong> Rp ${Number(total).toLocaleString(
+            "id-ID"
+          )}</li>
+        </ul>
+        <p>
+          <a href="${fullInvoiceUrl}" 
+             style="display: inline-block; padding: 10px 16px; background-color: #28a745; color: white; text-decoration: none; border-radius: 5px;">
+            Lihat Invoice
+          </a>
+        </p>
+        <p>Silakan segera proses pesanan ini ya 💪</p>
       </div>
     `,
   };

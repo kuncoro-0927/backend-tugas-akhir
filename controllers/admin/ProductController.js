@@ -3,14 +3,37 @@ const { query } = require("../../config/database");
 const path = require("path");
 
 const createProduct = async (req, res) => {
-  const { name, description, price, category, size, weight } = req.body;
+  const {
+    name,
+    description,
+    price,
+    category,
+    size,
+    weight,
+    stock,
+    is_limited,
+  } = req.body;
   const image_url = req.file ? `/uploads/${req.file.filename}` : null;
+
+  // Tentukan status berdasarkan stok
+  const status = parseInt(stock) === 0 ? "sold" : "available";
 
   try {
     await query(
-      `INSERT INTO products (name, description, price, weight_gram, image_url, category_id, size, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
-      [name, description, price, weight, image_url, category, size]
+      `INSERT INTO products (name, description, price, weight_gram, image_url, category_id, size, stock, is_limited, status, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+      [
+        name,
+        description,
+        price,
+        weight,
+        image_url,
+        category,
+        size,
+        stock,
+        is_limited,
+        status, // status ditentukan otomatis
+      ]
     );
 
     res.status(201).json({ msg: "Produk berhasil ditambahkan", image_url });
@@ -20,6 +43,7 @@ const createProduct = async (req, res) => {
       .json({ msg: "Gagal menambahkan produk", error: error.message });
   }
 };
+
 const getAllProducts = async (req, res) => {
   try {
     const sql = `
@@ -28,6 +52,8 @@ const getAllProducts = async (req, res) => {
         p.name,
         p.description,
             p.status,
+               p.stock,
+              
         p.price,
         p.size,
         p.weight_gram,
@@ -97,9 +123,20 @@ const getTopProducts = async (req, res) => {
     res.status(500).json({ success: false, message: "Failed to fetch data" });
   }
 };
+
 const updateProduct = async (req, res) => {
   const { id } = req.params;
-  const { name, description, price, category, size, weight } = req.body;
+  const {
+    name,
+    description,
+    price,
+    category,
+    size,
+    weight,
+    stock,
+    is_limited,
+    status,
+  } = req.body;
 
   try {
     // Ambil data produk lama
@@ -108,13 +145,12 @@ const updateProduct = async (req, res) => {
       [id]
     );
 
-    let image_url;
+    let image_url = product.image_url; // default pakai yang lama dulu
 
     if (req.file) {
       // Jika ada gambar baru, set image_url baru
       image_url = `/uploads/${req.file.filename}`;
 
-      // Hapus gambar lama jika ada
       if (product.image_url) {
         const oldImagePath = path.join(
           __dirname,
@@ -122,20 +158,34 @@ const updateProduct = async (req, res) => {
           product.image_url
         );
 
-        // Pastikan file benar-benar ada sebelum dihapus
-        if (fs.existsSync(oldImagePath)) {
-          fs.unlinkSync(oldImagePath);
+        try {
+          // Cek apakah file ada sebelum hapus
+          await fs.access(oldImagePath);
+          await fs.unlink(oldImagePath);
+        } catch {
+          console.warn(
+            "File lama tidak ditemukan, tidak dihapus:",
+            oldImagePath
+          );
         }
       }
-    } else {
-      // Tidak ada gambar baru, gunakan gambar lama
-      image_url = product.image_url;
     }
 
-    // Update produk
+    // Query update produk
     const updateQuery = `
       UPDATE products
-      SET name = ?, description = ?, price = ?, weight_gram = ?, image_url = ?, category_id = ?, size = ?, updated_at = NOW()
+      SET 
+        name = ?, 
+        description = ?, 
+        price = ?, 
+        weight_gram = ?, 
+        image_url = ?, 
+        category_id = ?, 
+        size = ?, 
+        stock = ?, 
+        is_limited = ?, 
+        status = ?, 
+        updated_at = NOW()
       WHERE id = ?
     `;
 
@@ -147,6 +197,9 @@ const updateProduct = async (req, res) => {
       image_url,
       category,
       size,
+      stock,
+      is_limited,
+      status,
       id,
     ];
 
@@ -154,6 +207,7 @@ const updateProduct = async (req, res) => {
 
     res.status(200).json({ msg: "Produk berhasil diperbarui", image_url });
   } catch (error) {
+    console.error(error);
     res.status(500).json({
       msg: "Gagal memperbarui produk",
       error: error.message,
@@ -205,7 +259,7 @@ const getProductById = async (req, res) => {
 
   try {
     const [product] = await query(
-      "SELECT id, name, description, price, weight_gram, image_url, category_id, size FROM products WHERE id = ?",
+      "SELECT id, name, description, price, weight_gram, image_url, stock, status, is_limited, category_id, size FROM products WHERE id = ?",
       [id]
     );
 

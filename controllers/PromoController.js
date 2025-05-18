@@ -2,6 +2,12 @@ const { query } = require("../config/database");
 
 const checkPromo = async (req, res) => {
   const { code, total } = req.body;
+  const formatToIDR = (amount) => {
+    return `IDR ${Number(amount).toLocaleString("id-ID", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+  };
 
   const parsedTotal = parseInt(total);
   if (isNaN(parsedTotal)) {
@@ -21,11 +27,12 @@ const checkPromo = async (req, res) => {
     if (new Date(promo.expiry_date) < new Date()) {
       return res.status(400).json({ error: "Kode promo sudah kadaluarsa" });
     }
-
     if (promo.min_order && total < Number(promo.min_order)) {
+      const formattedMinOrder = formatToIDR(promo.min_order);
+
       return res
         .status(400)
-        .json({ error: `Minimal order Rp${promo.min_order}` });
+        .json({ error: `Minimal pesanan ${formattedMinOrder}` });
     }
 
     let discount = 0;

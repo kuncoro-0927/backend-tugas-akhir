@@ -1,12 +1,39 @@
 const { query } = require("../config/database.js");
-const { v4: uuidv4 } = require("uuid"); // Menggunakan UUID untuk token (opsional)
+const { v4: uuidv4 } = require("uuid");
 
 const proceedToCheckout = async (req, res) => {
   const user_id = req.user.id;
-
   const cartItems = req.body.items;
 
   try {
+    // VALIDASI PRODUK LIMITED
+    for (const item of cartItems) {
+      const productRows = await query(
+        `SELECT name, is_limited, status, stock FROM products WHERE id = ?`,
+        [item.product_id]
+      );
+
+      const product = productRows[0];
+
+      if (!product) {
+        return res.status(400).json({ msg: `Produk tidak ditemukan.` });
+      }
+
+      if (product.status === "sold") {
+        return res.status(400).json({ msg: `Produk sudah terjual.` });
+      }
+
+      if (product.is_limited && item.quantity > product.stock) {
+        return res.status(400).json({ msg: `Pesanan Anda melebihi stok` });
+      }
+
+      if (!product.is_limited && item.quantity > product.stock) {
+        return res.status(400).json({
+          msg: `Stok produk ini hanya ${product.stock}`,
+        });
+      }
+    }
+
     // Hitung subtotal dari semua item
     const subtotal = cartItems.reduce((total, item) => {
       return total + item.price * item.quantity;
@@ -14,23 +41,25 @@ const proceedToCheckout = async (req, res) => {
 
     const admin_fee = 2000;
     const shipping_fee = 0;
-
     const totalAmount = subtotal + admin_fee + shipping_fee;
+
     const generateTicketCode = () => {
       const prefix = "FZA";
       const randomNumber = Math.floor(Math.random() * 1000000)
         .toString()
         .padStart(6, "0");
-      return `FZA-${new Date()
+      return `${prefix}-${new Date()
         .toISOString()
         .slice(0, 10)
         .replace(/-/g, "")}-${randomNumber}`;
     };
+
     const orderId = uuidv4();
     const orderCode = generateTicketCode();
+
     await query(
       `INSERT INTO orders (order_id, order_code, user_id, subtotal, admin_fee, shipping_fee, total_amount, status)
-       VALUES ( ?, ?, ?, ?, ?, ?, ?,?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         orderId,
         orderCode,
@@ -59,8 +88,6 @@ const proceedToCheckout = async (req, res) => {
     });
 
     await Promise.all(orderItemsPromises);
-
-    // await query(`DELETE FROM carts WHERE user_id = ?`, [user_id]);
 
     res.status(200).json({
       msg: "Pesanan berhasil dibuat!",

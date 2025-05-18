@@ -28,7 +28,9 @@ exports.toggleWishlist = async (req, res) => {
     ]);
 
     return res.json({
-      message: exist ? "Removed from wishlist" : "Added to wishlist",
+      message: exist
+        ? "Wishlist berhasil dihapus"
+        : "Berhasil menambahkan ke wishlist",
       wishlist,
     });
   } catch (error) {

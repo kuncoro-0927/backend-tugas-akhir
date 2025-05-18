@@ -24,10 +24,52 @@ const createOrder = async (req, res) => {
     shipping_details, // Shipping details to be added to order_shipping_details
   } = req.body;
 
+  const connection = await database.getConnection();
+
   try {
-    // Step 1: Insert into 'orders' table
-    const order_id = uuidv4(); // You should implement your order ID generator
-    const order_code = generateOrderCode(); // You should implement your order code generator
+    await connection.beginTransaction();
+
+    // Step 1: Validasi produk limited
+    for (const product of products) {
+      const rows = await connection.query(
+        "SELECT is_limited, status FROM products WHERE id = ?",
+        [product.product_id]
+      );
+
+      if (rows.length === 0) {
+        await connection.rollback();
+        return res.status(400).json({
+          message: `Produk ID ${product.product_id} tidak ditemukan.`,
+        });
+      }
+
+      const dbProduct = rows[0];
+
+      if (dbProduct.is_limited) {
+        if (dbProduct.status === "sold") {
+          await connection.rollback();
+          return res.status(400).json({
+            message: `Produk '${product.product_name}' sudah terjual.`,
+          });
+        }
+        if (product.quantity > product.stock) {
+          await connection.rollback();
+          return res.status(400).json({
+            message: `Pesanan melebihi stok`,
+          });
+        }
+
+        if (!product.is_limited && quantity > product.stock) {
+          return res.status(400).json({
+            msg: `Stok '${item.name}' hanya tersedia ${product.stock}, kamu mencoba membeli ${item.quantity}.`,
+          });
+        }
+      }
+    }
+
+    // Step 2: Insert order
+    const order_id = uuidv4();
+    const order_code = generateOrderCode();
     const admin_fee = 2000;
 
     const cleanSubtotal = Number(subtotal) || 0;
@@ -41,10 +83,9 @@ const createOrder = async (req, res) => {
       INSERT INTO orders (order_id, user_id, subtotal, admin_fee, shipping_fee, total_amount, promo_code, discount_amount, order_code)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
-    await query(orderSql, [
+    await connection.query(orderSql, [
       order_id,
       user_id,
-
       cleanSubtotal,
       admin_fee,
       cleanShipping,
@@ -54,7 +95,7 @@ const createOrder = async (req, res) => {
       order_code,
     ]);
 
-    // Step 2: Insert into 'order_items' table
+    // Step 3: Insert order_items
     const orderItemsSql = `
       INSERT INTO order_items (order_id, product_id, product_name, price, quantity, total)
       VALUES ?
@@ -67,14 +108,14 @@ const createOrder = async (req, res) => {
       product.quantity,
       product.total,
     ]);
-    await query(orderItemsSql, [orderItemsValues]);
+    await connection.query(orderItemsSql, [orderItemsValues]);
 
-    // Step 3: Insert into 'order_shipping_details' table
+    // Step 4: Insert shipping details
     const shippingDetailsSql = `
       INSERT INTO order_shipping_details (order_id, shipping_firstname, shipping_lastname, shipping_phone, shipping_address, province, city, postal_code, courier, etd, shipping_cost)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
-    await query(shippingDetailsSql, [
+    await connection.query(shippingDetailsSql, [
       order_id,
       shipping_details.shipping_firstname,
       shipping_details.shipping_lastname,
@@ -88,17 +129,51 @@ const createOrder = async (req, res) => {
       shipping_details.shipping_cost,
     ]);
 
-    // Return success response
+    // Step 5: Update status produk limited jadi 'sold'
+    // Step 5: Update status produk jadi 'sold' jika stok tersisa 1 dan berhasil dipesan
+    for (const product of products) {
+      // Kurangi stok dulu
+      const [updateStockResult] = await connection.query(
+        "UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?",
+        [product.quantity, product.product_id, product.quantity]
+      );
+
+      if (updateStockResult.affectedRows === 0) {
+        await connection.rollback();
+        return res.status(400).json({
+          message: `Gagal mengurangi stok untuk produk ID ${product.product_id}. Mungkin stok tidak cukup.`,
+        });
+      }
+
+      // Cek apakah stok jadi 0
+      const [[updatedProduct]] = await connection.query(
+        "SELECT stock FROM products WHERE id = ?",
+        [product.product_id]
+      );
+
+      if (updatedProduct.stock === 0) {
+        await connection.query(
+          "UPDATE products SET status = 'sold' WHERE id = ?",
+          [product.product_id]
+        );
+      }
+    }
+
+    await connection.commit();
+
     return res.status(201).json({
       order_id: order_id,
       admin_fee: admin_fee,
       message: "Order created successfully",
     });
   } catch (error) {
+    await connection.rollback();
     console.error("Error creating order:", error);
     return res
       .status(500)
       .json({ message: "Internal Server Error", error: error.message });
+  } finally {
+    connection.release();
   }
 };
 
@@ -131,37 +206,6 @@ LIMIT 3;
       .json({ message: "Internal Server Error", error: error.message });
   }
 };
-
-// const getAllOrders = async (req, res) => {
-//   try {
-//     const sql = `
-//    SELECT
-//      o.id,
-//   o.order_code,
-//   o.status,
-//     o.tracking_number,
-//   u.name AS user_name,
-//    u.firstname,
-//       u.lastname,
-//    u.email AS user_email,
-//   o.total_amount
-// FROM orders o
-// JOIN users u ON o.user_id = u.id
-// WHERE o.status IN ('pending', 'paid', 'shipped', 'completed')
-// ORDER BY o.created_at DESC;
-
-//       `;
-
-//     const orders = await query(sql);
-
-//     return res.json(orders);
-//   } catch (error) {
-//     console.error("Error getting order details:", error);
-//     return res
-//       .status(500)
-//       .json({ message: "Internal Server Error", error: error.message });
-//   }
-// };
 
 const getAllOrders = async (req, res) => {
   try {
@@ -452,21 +496,17 @@ const updateOrder = async (req, res) => {
   await connection.beginTransaction();
 
   try {
-    console.log("🔍 Mencari order berdasarkan ID...");
     const [order] = await connection.query(
       `SELECT order_id FROM orders WHERE id = ?`,
       [id]
     );
 
     if (!order.length) {
-      console.log("❌ Order tidak ditemukan.");
       return res.status(404).json({ message: "Order tidak ditemukan." });
     }
 
     const orderId = order[0].order_id;
-    console.log("✅ orderId ditemukan:", orderId);
 
-    console.log("📦 Mengupdate data orders...");
     await connection.query(
       `
       UPDATE orders SET
@@ -478,9 +518,7 @@ const updateOrder = async (req, res) => {
       WHERE id = ?`,
       [status, tracking_number, promo_code, discount_amount, id]
     );
-    console.log("✅ Update orders selesai.");
 
-    console.log("📦 Mengupdate shipping details...");
     await connection.query(
       `
       UPDATE order_shipping_details SET
@@ -509,18 +547,13 @@ const updateOrder = async (req, res) => {
         orderId,
       ]
     );
-    console.log("✅ Update shipping selesai.");
 
     if (items.length > 0) {
-      console.log("🗑 Menghapus order_items lama...");
       await connection.query(`DELETE FROM order_items WHERE order_id = ?`, [
         orderId,
       ]);
-      console.log("✅ order_items lama dihapus.");
 
-      console.log("➕ Menambahkan order_items baru...");
       for (const item of items) {
-        console.log("🛒 Menambahkan item:", item.product_name);
         await connection.query(
           `INSERT INTO order_items (order_id, product_id, product_name, price, quantity, total)
            VALUES (?, ?, ?, ?, ?, ?)`,
@@ -534,15 +567,11 @@ const updateOrder = async (req, res) => {
           ]
         );
       }
-      console.log("✅ Semua order_items baru ditambahkan.");
-    } else {
-      console.log("ℹ️ Tidak ada items yang dikirim. Skip update order_items.");
     }
 
     await connection.commit();
     connection.release();
 
-    console.log("🎉 Order berhasil diperbarui.");
     return res
       .status(200)
       .json({ message: "Order dan detail berhasil diperbarui." });

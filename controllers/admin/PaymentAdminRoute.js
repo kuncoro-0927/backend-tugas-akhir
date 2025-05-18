@@ -139,8 +139,8 @@ exports.createAdminPayment = async (req, res) => {
       "Menunggu pembayaran",
       transaction.redirect_url,
     ]);
-    const promo = promoCode?.code || promo?.code || null;
-    const discountValue = promoCode?.discount || promo?.discount || 0;
+    const promo = promoCode?.code || null;
+    const discountValue = promoCode?.discount || 0;
 
     const updateOrderPromoQuery = `
       UPDATE orders 

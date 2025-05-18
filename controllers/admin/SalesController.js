@@ -54,15 +54,14 @@ const getTodaySalesData = async (req, res) => {
     const today = new Date().toISOString().split("T")[0];
 
     const sql = `
-       SELECT COUNT(DISTINCT orders.order_id) AS total_orders,
-       SUM(CASE WHEN transactions.transaction_status = 'success' THEN transactions.gross_amount ELSE 0 END) AS total_sales,
-        SUM(CASE WHEN transactions.transaction_status = 'success' THEN 1 ELSE 0 END) AS total_success
-FROM orders
-JOIN transactions ON orders.order_id = transactions.order_id
-WHERE transactions.transaction_status = 'success'
-AND DATE(orders.created_at) = CURDATE();
-      `;
-
+  SELECT COUNT(DISTINCT orders.order_id) AS total_orders,
+         SUM(CASE WHEN transactions.transaction_status = 'success' THEN transactions.gross_amount ELSE 0 END) AS total_sales,
+         SUM(CASE WHEN transactions.transaction_status = 'success' THEN 1 ELSE 0 END) AS total_success
+  FROM orders
+  JOIN transactions ON orders.order_id = transactions.order_id
+  WHERE transactions.transaction_status = 'success'
+    AND DATE(CONVERT_TZ(orders.created_at, '+00:00', '+07:00')) = ?
+`;
     const [result] = await query(sql, [today]);
 
     if (result) {
