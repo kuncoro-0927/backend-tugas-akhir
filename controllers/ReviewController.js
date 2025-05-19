@@ -11,13 +11,14 @@ const getOrderedProductsByUser = async (req, res) => {
   try {
     const result = await query(
       `
-    SELECT DISTINCT p.*, o.created_at AS ordered_at
-    FROM products p
-    JOIN order_items oi ON p.id = oi.product_id
-    JOIN orders o ON o.order_id = oi.order_id
-    WHERE o.user_id = ?
-      AND o.status = 'completed'
-    ORDER BY o.created_at DESC
+      SELECT DISTINCT p.*, c.name AS category_name, o.created_at AS ordered_at
+      FROM products p
+      JOIN categories c ON p.category_id = c.id
+      JOIN order_items oi ON p.id = oi.product_id
+      JOIN orders o ON o.order_id = oi.order_id
+      WHERE o.user_id = ?
+        AND o.status = 'completed'
+      ORDER BY o.created_at DESC
       `,
       [userId]
     );
@@ -86,15 +87,17 @@ const getUserReviews = async (req, res) => {
   try {
     const result = await query(
       `
-     SELECT 
+SELECT 
   r.*, 
   p.name AS product_name, 
   p.image_url,
-   p.size,
-    p.price,
+  p.size,
+  p.price,
+  c.name AS category_name,
   o.created_at AS ordered_at
 FROM reviews r
 JOIN products p ON r.product_id = p.id
+JOIN categories c ON p.category_id = c.id
 JOIN order_items oi ON oi.product_id = p.id
 JOIN orders o ON o.order_id = oi.order_id
 WHERE r.user_id = ? 

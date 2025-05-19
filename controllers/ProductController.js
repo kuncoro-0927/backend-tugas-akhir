@@ -96,7 +96,7 @@ const deleteProduct = async (req, res) => {
 };
 
 const getFilteredProducts = async (req, res) => {
-  const { category, size, min_price, max_price } = req.query;
+  const { category, size, min_price, max_price, keyword } = req.query;
 
   let sql = `SELECT * FROM products WHERE 1=1`;
   const params = [];
@@ -118,6 +118,11 @@ const getFilteredProducts = async (req, res) => {
       categoryId = categoryResult[0].id;
       sql += ` AND category_id = ?`;
       params.push(categoryId);
+    }
+
+    if (keyword) {
+      sql += ` AND name LIKE ?`;
+      params.push(`%${keyword}%`);
     }
 
     if (size) {
