@@ -8,7 +8,8 @@ const createProduct = async (req, res) => {
     description,
     price,
     category,
-    size,
+    width,
+    height,
     weight,
     stock,
     is_limited,
@@ -20,7 +21,7 @@ const createProduct = async (req, res) => {
 
   try {
     await query(
-      `INSERT INTO products (name, description, price, weight_gram, image_url, category_id, size, stock, is_limited, status, created_at, updated_at)
+      `INSERT INTO products (name, description, price, weight_gram, image_url, category_id, width,height, stock, is_limited, status, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
       [
         name,
@@ -29,7 +30,8 @@ const createProduct = async (req, res) => {
         weight,
         image_url,
         category,
-        size,
+        width,
+        height,
         stock,
         is_limited,
         status, // status ditentukan otomatis
@@ -55,7 +57,8 @@ const getAllProducts = async (req, res) => {
                p.stock,
               
         p.price,
-        p.size,
+        p.width,
+           p.height,
         p.weight_gram,
         p.image_url,
         p.category_id,
@@ -131,7 +134,8 @@ const updateProduct = async (req, res) => {
     description,
     price,
     category,
-    size,
+    width,
+    height,
     weight,
     stock,
     is_limited,
@@ -181,7 +185,8 @@ const updateProduct = async (req, res) => {
         weight_gram = ?, 
         image_url = ?, 
         category_id = ?, 
-        size = ?, 
+        width = ?, 
+          height = ?, 
         stock = ?, 
         is_limited = ?, 
         status = ?, 
@@ -196,7 +201,8 @@ const updateProduct = async (req, res) => {
       weight,
       image_url,
       category,
-      size,
+      width,
+      height,
       stock,
       is_limited,
       status,
@@ -259,7 +265,7 @@ const getProductById = async (req, res) => {
 
   try {
     const [product] = await query(
-      "SELECT id, name, description, price, weight_gram, image_url, stock, status, is_limited, category_id, size FROM products WHERE id = ?",
+      "SELECT id, name, description, price, weight_gram, image_url, stock, status, is_limited, category_id, width, height FROM products WHERE id = ?",
       [id]
     );
 

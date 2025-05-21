@@ -7,10 +7,17 @@ const {
   deleteCartItem,
   getCartByUserId,
 } = require("../controllers/CartController");
+const upload = require("../middleware/Multer");
 const { verifyUserToken } = require("../middleware/VerifyToken.js");
+
 const CartRoute = express.Router();
 
-CartRoute.post("/add/to/cart", verifyUserToken, addToCart);
+CartRoute.post(
+  "/add/to/cart",
+  upload.single("image"),
+  verifyUserToken,
+  addToCart
+);
 CartRoute.get("/get/cart", verifyUserToken, getCartItems);
 CartRoute.get("/get/cart/user/:user_id", verifyUserToken, getCartByUserId);
 CartRoute.patch("/update/cart/:id", verifyUserToken, updateCartItem);

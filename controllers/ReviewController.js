@@ -91,7 +91,8 @@ SELECT
   r.*, 
   p.name AS product_name, 
   p.image_url,
-  p.size,
+  p.width,
+    p.height,
   p.price,
   c.name AS category_name,
   o.created_at AS ordered_at

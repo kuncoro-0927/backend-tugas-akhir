@@ -9,7 +9,8 @@ const getAllProducts = async (req, res) => {
         p.name,
         p.description,
         p.price,
-        p.size,
+        p.width,
+            p.width,
             p.stock,
               p.status,
                 p.is_limited,
@@ -67,9 +68,9 @@ const updateProduct = async (req, res) => {
 
   try {
     await query(
-      `UPDATE products SET name = ?, description = ?, price = ?, image_url = ?, category = ?, size = ?, stock = ?, updated_at = NOW()
+      `UPDATE products SET name = ?, description = ?, price = ?, image_url = ?, category = ?, width = ?, height = ?, stock = ?, updated_at = NOW()
          WHERE id = ?`,
-      [name, description, price, image_url, category, size, stock, id]
+      [name, description, price, image_url, category, width, height, stock, id]
     );
 
     return res.status(200).json({ msg: "Produk berhasil diperbarui" });
@@ -96,7 +97,7 @@ const deleteProduct = async (req, res) => {
 };
 
 const getFilteredProducts = async (req, res) => {
-  const { category, size, min_price, max_price, keyword } = req.query;
+  const { category, width, height, min_price, max_price, keyword } = req.query;
 
   let sql = `SELECT * FROM products WHERE 1=1`;
   const params = [];

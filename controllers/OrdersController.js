@@ -6,7 +6,7 @@ const proceedToCheckout = async (req, res) => {
   const cartItems = req.body.items;
 
   try {
-    // VALIDASI PRODUK LIMITED
+    // Validasi produk (stok, status, limited)
     for (const item of cartItems) {
       const productRows = await query(
         `SELECT name, is_limited, status, stock FROM products WHERE id = ?`,
@@ -34,15 +34,19 @@ const proceedToCheckout = async (req, res) => {
       }
     }
 
-    // Hitung subtotal dari semua item
+    // Hitung subtotal: gunakan harga custom jika is_custom true, harga biasa kalau tidak
     const subtotal = cartItems.reduce((total, item) => {
-      return total + item.price * item.quantity;
+      const price = item.is_custom
+        ? Number(item.custom_price)
+        : Number(item.price);
+      return total + price * item.quantity;
     }, 0);
 
-    const admin_fee = 2000;
-    const shipping_fee = 0;
+    const admin_fee = 2000; // contoh nilai admin fee
+    const shipping_fee = 0; // contoh nilai ongkir, sesuaikan jika ada perhitungan
     const totalAmount = subtotal + admin_fee + shipping_fee;
 
+    // Fungsi generate kode order unik
     const generateTicketCode = () => {
       const prefix = "FZA";
       const randomNumber = Math.floor(Math.random() * 1000000)
@@ -57,8 +61,10 @@ const proceedToCheckout = async (req, res) => {
     const orderId = uuidv4();
     const orderCode = generateTicketCode();
 
+    // Insert ke tabel orders
     await query(
-      `INSERT INTO orders (order_id, order_code, user_id, subtotal, admin_fee, shipping_fee, total_amount, status)
+      `INSERT INTO orders 
+        (order_id, order_code, user_id, subtotal, admin_fee, shipping_fee, total_amount, status)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         orderId,
@@ -72,17 +78,28 @@ const proceedToCheckout = async (req, res) => {
       ]
     );
 
+    // Insert ke tabel order_items dengan tambahan kolom custom
     const orderItemsPromises = cartItems.map((item) => {
+      console.log(item.note, item.custom_image_url);
+
       return query(
-        `INSERT INTO order_items (order_id, product_id, product_name, price, quantity, total)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO order_items 
+          (order_id, product_id, product_name, price, quantity, total, is_custom, custom_width, custom_height, note, custom_image_url, custom_price)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           orderId,
           item.product_id,
-          item.name,
-          item.price,
+          item.product_name,
+          item.is_custom ? Number(item.custom_price) : Number(item.price),
           item.quantity,
-          item.price * item.quantity,
+          (item.is_custom ? Number(item.custom_price) : Number(item.price)) *
+            item.quantity,
+          item.is_custom ? 1 : 0,
+          item.is_custom ? Number(item.custom_width) || null : null,
+          item.is_custom ? Number(item.custom_height) || null : null,
+          item.is_custom ? item.custom_notes || null : null,
+          item.is_custom ? item.custom_image || null : null,
+          item.is_custom ? Number(item.custom_price) : null,
         ]
       );
     });
@@ -99,10 +116,11 @@ const proceedToCheckout = async (req, res) => {
       total_amount: totalAmount,
     });
   } catch (error) {
-    console.error(error);
-    res
-      .status(500)
-      .json({ msg: "Gagal melanjutkan pembayaran", error: error.message });
+    console.error("Error proceedToCheckout:", error);
+    res.status(500).json({
+      msg: "Gagal melanjutkan pembayaran",
+      error: error.message,
+    });
   }
 };
 
@@ -126,7 +144,8 @@ const getOrderDetails = async (req, res) => {
          oi.product_name, 
          oi.price, 
          p.weight_gram, 
-           p.size, 
+           p.width, 
+            p.height, 
          oi.quantity, 
          oi.total, 
          p.image_url,
@@ -185,7 +204,8 @@ const getUserOrdersWithDetails = async (req, res) => {
             oi.*, 
             p.image_url, 
             p.category_id, 
-            p.size, 
+            p.width, 
+             p.height, 
             p.price, 
             c.name AS category_name
           FROM 
