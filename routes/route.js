@@ -21,7 +21,7 @@ const ProductsAdminRoute = require("../routes/admin/ProductsRoute.js");
 const PromoCodesAdminRoute = require("../routes/admin/PromoCodes.js");
 const CategoryAdminRoute = require("../routes/admin/CategoryRoute.js");
 const ExportOrderRoute = require("../routes/ExportOrderRoute.js");
-
+const NotificationRoute = require("../routes/admin/NotificationRoute.js");
 const router = express();
 
 const api = "/api/v1";
@@ -49,4 +49,5 @@ router.use(api, UsersAdminRoute);
 router.use(api, ProductsAdminRoute);
 router.use(api, PromoCodesAdminRoute);
 router.use(api, CategoryAdminRoute);
+router.use(api, NotificationRoute);
 module.exports = router;

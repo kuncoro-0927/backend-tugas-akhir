@@ -97,7 +97,8 @@ const deleteProduct = async (req, res) => {
 };
 
 const getFilteredProducts = async (req, res) => {
-  const { category, width, height, min_price, max_price, keyword } = req.query;
+  const { category, width, height, size, min_price, max_price, keyword } =
+    req.query;
 
   let sql = `SELECT * FROM products WHERE 1=1`;
   const params = [];

@@ -1,5 +1,7 @@
 const midtransClient = require("midtrans-client");
 const { query, database } = require("../config/database.js");
+const { createNotification } = require("../controllers/admin/Notification.js");
+
 const path = require("path");
 const generateInvoicePDF = require("../utils/InvoiceGenerator");
 const {
@@ -147,6 +149,8 @@ exports.processPayment = async (req, res) => {
         finish: `${process.env.FRONTEND_URL}/payment/success/${order_id}`,
       },
     };
+    console.log("itemDetails:", itemDetails);
+    console.log("grossAmount:", grossAmount);
 
     const transaction = await snap.createTransaction(paymentParams);
 
@@ -224,23 +228,8 @@ exports.verifyPayment = async (req, res) => {
   }
 };
 
-function getFormattedPaymentMethod(payment_type, bank) {
-  const map = {
-    bank_transfer: bank
-      ? `Bank Transfer (${bank.toUpperCase()})`
-      : "Bank Transfer",
-    permata: "Bank Permata",
-    echannel: "Bank Mandiri",
-    gopay: "GoPay",
-    shopeepay: "ShopeePay",
-    qris: "QRIS",
-    credit_card: "Credit Card",
-  };
-
-  return map[payment_type] || "Unknown";
-}
-
 exports.handlePaymentCallback = async (req, res) => {
+  const io = req.app.get("io");
   const {
     order_id,
     transaction_status,
@@ -403,6 +392,12 @@ exports.handlePaymentCallback = async (req, res) => {
             [item.product_id]
           );
         }
+        if (product.is_limited === 0 && product.stock === 0) {
+          await connection.query(
+            `UPDATE products SET status = 'sold', updated_at = CURRENT_TIMESTAMP() WHERE id = ?`,
+            [item.product_id]
+          );
+        }
       }
 
       // Hapus cart user
@@ -416,6 +411,31 @@ exports.handlePaymentCallback = async (req, res) => {
           orderUser.user_id,
         ]);
       }
+
+      try {
+        await connection.query(
+          `INSERT INTO notifications 
+        (user_id, order_id, title, message, type, created_at) 
+       VALUES (?, ?, ?, ?, ?, NOW())`,
+          [
+            orderUser.user_id || 0,
+            order_id,
+            "Pesanan Baru Dibayar",
+            `Pesanan dengan ID ${order_id} telah berhasil dibayar.`,
+            "order",
+          ]
+        );
+      } catch (notifErr) {
+        console.error("Gagal membuat notifikasi:", notifErr);
+        // Jangan throw, biarkan transaksi tetap commit
+      }
+
+      io.to("admin").emit("newNotification", {
+        title: "Pesanan Baru Dibayar",
+        message: `Pesanan dengan ID ${order_id} telah berhasil dibayar.`,
+        type: "order",
+        order_id,
+      });
 
       // Generate PDF invoice
       try {
@@ -472,6 +492,6 @@ exports.handlePaymentCallback = async (req, res) => {
       error: error.message,
     });
   } finally {
-    connection.release(); // Penting: jangan lupa melepaskan koneksi
+    connection.release();
   }
 };

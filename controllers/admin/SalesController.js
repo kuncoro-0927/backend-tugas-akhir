@@ -19,7 +19,9 @@ const getTotalSales = async (req, res) => {
           SUM(CASE WHEN transactions.transaction_status = 'failed' THEN 1 ELSE 0 END) AS total_failed
         FROM orders
         JOIN transactions ON orders.order_id = transactions.order_id
-      WHERE DATE(CONVERT_TZ(orders.created_at, '+00:00', '+07:00')) BETWEEN ? AND ?
+   WHERE DATE(orders.created_at) BETWEEN ? AND ?
+
+
 
       `;
 
@@ -60,7 +62,8 @@ const getTodaySalesData = async (req, res) => {
   FROM orders
   JOIN transactions ON orders.order_id = transactions.order_id
   WHERE transactions.transaction_status = 'success'
-    AND DATE(CONVERT_TZ(orders.created_at, '+00:00', '+07:00')) = ?
+    AND  DATE(orders.created_at) 
+ = ?
 `;
     const [result] = await query(sql, [today]);
 

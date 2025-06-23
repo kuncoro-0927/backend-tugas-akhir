@@ -700,6 +700,50 @@ const deleteOrderById = async (req, res) => {
   }
 };
 
+const getTransactionById = async (req, res) => {
+  const { id } = req.params; // id = PRIMARY KEY dari tabel transactions
+
+  try {
+    const [transaction] = await query(
+      `SELECT 
+    t.id,
+    t.order_id,
+    t.payment_token,
+    t.transaction_id,
+    t.transaction_status,
+    t.payment_type,
+    t.gross_amount,
+    t.transaction_time,
+    t.settlement_time,
+    t.expiry_time,
+    t.status_message,
+    t.redirect_url,
+    t.fraud_status,
+    t.created_at,
+    t.updated_at,
+    t.bank,
+    t.payment_method_display,
+    o.order_code  -- kolom dari tabel orders
+  FROM transactions t
+  JOIN orders o ON t.order_id = o.order_id
+  WHERE t.id = ?`,
+      [id]
+    );
+
+    if (!transaction) {
+      return res.status(404).json({ msg: "Transaksi tidak ditemukan" });
+    }
+
+    res.json(transaction);
+  } catch (error) {
+    console.error("Gagal mengambil transaksi:", error);
+    res.status(500).json({
+      msg: "Gagal mengambil detail transaksi",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   getRecentOrders,
   createOrder,
@@ -711,4 +755,5 @@ module.exports = {
   updateOrder,
   getOrderById,
   deleteOrderById,
+  getTransactionById,
 };

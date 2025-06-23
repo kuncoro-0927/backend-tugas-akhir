@@ -22,7 +22,7 @@ const createProduct = async (req, res) => {
   try {
     await query(
       `INSERT INTO products (name, description, price, weight_gram, image_url, category_id, width,height, stock, is_limited, status, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+       VALUES (?,?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
       [
         name,
         description,
@@ -95,6 +95,7 @@ const getTopProducts = async (req, res) => {
       SELECT 
         products.id AS product_id,
         products.name AS product_name,
+         products.price AS product_price,
         categories.name AS category_name,
         products.image_url,
         COUNT(transactions.id) AS total_transactions,
