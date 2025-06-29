@@ -77,7 +77,7 @@ exports.sendAdminNotificationEmail = async (
         </ul>
         <p>
           <a href="${fullInvoiceUrl}" 
-             style="display: inline-block; padding: 10px 16px; background-color: #28a745; color: white; text-decoration: none; border-radius: 5px;">
+             style="display: inline-block; padding: 10px 16px; background-color: #000000; color: white; text-decoration: none; border-radius: 5px;">
             Lihat Invoice
           </a>
         </p>

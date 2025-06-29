@@ -137,9 +137,13 @@ const loginUser = async (req, res) => {
         message: "Password salah",
       });
     }
-
+    if (user.role_id !== 2) {
+      return res.status(403).json({
+        message: "Akun Anda tidak memiliki izin untuk mengakses aplikasi ini.",
+      });
+    }
     const role =
-      user.role_id === 1 ? "admin" : user.role_id === 3 ? "attendant" : "user";
+      user.role_id === 1 ? "admin" : user.role_id === 2 ? "user" : null;
 
     const token = jwt.sign(
       {
@@ -190,7 +194,8 @@ const loginUser = async (req, res) => {
       lastname: user.lastname,
       email: user.email,
       phonenumber: user.phonenumber,
-      role_id,
+      role_id: user.role_id,
+      role,
       isverified: true,
     });
   } catch (err) {
@@ -257,7 +262,7 @@ const loginWithGoogle = async (req, res) => {
         name: user.name,
       },
       process.env.JWT_SECRET,
-      { expiresIn: "10s" }
+      { expiresIn: "1h" }
     );
 
     const refreshToken = jwt.sign(
@@ -285,7 +290,7 @@ const loginWithGoogle = async (req, res) => {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "Strict",
-      maxAge: 10000,
+      maxAge: 60 * 60 * 1000, // 1 jam
     });
 
     // Redirect ke frontend

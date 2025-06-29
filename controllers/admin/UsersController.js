@@ -24,6 +24,7 @@ const createUser = async (req, res) => {
       city,
       province,
       role_id,
+      postal_code,
       isverified = 1,
     } = req.body;
 
@@ -49,8 +50,8 @@ const createUser = async (req, res) => {
     const sql = `
       INSERT INTO users (
         name, firstname, lastname, email, password, phone,
-        address, city, province, role_id, isverified
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        address, city, province, role_id,postal_code, isverified
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?,?, ?, ?)
     `;
     const values = [
       name,
@@ -63,6 +64,7 @@ const createUser = async (req, res) => {
       city,
       province,
       role_id,
+      postal_code,
       isverified,
     ];
 

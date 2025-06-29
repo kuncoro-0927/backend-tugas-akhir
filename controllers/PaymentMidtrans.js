@@ -228,6 +228,274 @@ exports.verifyPayment = async (req, res) => {
   }
 };
 
+// exports.handlePaymentCallback = async (req, res) => {
+//   const io = req.app.get("io");
+//   const {
+//     order_id,
+//     transaction_status,
+//     fraud_status,
+//     payment_type,
+//     transaction_time,
+//     settlement_time,
+//     expiry_time,
+//     status_message,
+//     transaction_id,
+//     gross_amount,
+//   } = req.body;
+
+//   if (!order_id || !transaction_status) {
+//     return res
+//       .status(400)
+//       .json({ msg: "Order ID atau status transaksi tidak ditemukan" });
+//   }
+
+//   let newStatus = "";
+
+//   if (transaction_status === "capture" && fraud_status === "accept") {
+//     newStatus = "success";
+//   } else if (transaction_status === "settlement") {
+//     newStatus = "success";
+//   } else if (transaction_status === "pending") {
+//     newStatus = "pending";
+//   } else if (["deny", "expire", "cancel"].includes(transaction_status)) {
+//     newStatus = "failed";
+//   }
+
+//   const paymentTypeToBank = {
+//     permata: "Permata",
+//     echannel: "Mandiri",
+//     qris: "QRIS",
+//     gopay: "Gopay",
+//     shopeepay: "ShopeePay",
+//   };
+
+//   let bank = null;
+//   let payment_method_display = null;
+
+//   if (payment_type === "bank_transfer") {
+//     bank = req.body.va_numbers?.[0]?.bank || null;
+//     payment_method_display = bank
+//       ? `Bank Transfer (${bank.toUpperCase()})`
+//       : "Bank Transfer";
+//   } else {
+//     bank = paymentTypeToBank[payment_type] || null;
+//     payment_method_display = bank || "Unknown";
+//   }
+
+//   const connection = await database.getConnection(); // Ambil koneksi manual untuk transaksi
+
+//   try {
+//     await connection.beginTransaction();
+
+//     // cek order_id ada di orders
+//     const [orderRows] = await connection.query(
+//       `SELECT order_id FROM orders WHERE order_id = ?`,
+//       [order_id]
+//     );
+
+//     if (orderRows.length === 0) {
+//       await connection.rollback();
+//       connection.release();
+//       console.error(
+//         `Order dengan order_id ${order_id} tidak ditemukan di tabel orders`
+//       );
+//       return res.status(400).json({ msg: "Order tidak ditemukan" });
+//     }
+
+//     // cek transaksi
+//     const [checkResult] = await connection.query(
+//       `SELECT COUNT(*) as count FROM transactions WHERE order_id = ?`,
+//       [order_id]
+//     );
+
+//     if (checkResult[0].count > 0) {
+//       await connection.query(
+//         `UPDATE transactions SET
+//           transaction_id = ?, transaction_status = ?, payment_type = ?,
+//           gross_amount = ?, transaction_time = ?, settlement_time = ?,
+//           expiry_time = ?, status_message = ?, bank = ?, payment_method_display = ?,
+//           updated_at = CURRENT_TIMESTAMP()
+//         WHERE order_id = ?`,
+//         [
+//           transaction_id,
+//           newStatus,
+//           payment_type || null,
+//           gross_amount,
+//           transaction_time || null,
+//           settlement_time || null,
+//           expiry_time || null,
+//           status_message || null,
+//           bank,
+//           payment_method_display,
+//           order_id,
+//         ]
+//       );
+//     } else {
+//       await connection.query(
+//         `INSERT INTO transactions (
+//           order_id, transaction_id, transaction_status, payment_type,
+//           gross_amount, transaction_time, settlement_time, expiry_time,
+//           status_message, bank, payment_method_display, created_at, updated_at
+//         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP())`,
+//         [
+//           order_id,
+//           transaction_id,
+//           newStatus,
+//           payment_type || null,
+//           gross_amount,
+//           transaction_time || null,
+//           settlement_time || null,
+//           expiry_time || null,
+//           status_message || null,
+//           bank,
+//           payment_method_display,
+//         ]
+//       );
+//     }
+
+//     // Jika transaksi sukses, update order dan stok
+//     if (newStatus === "success") {
+//       await connection.query(
+//         `UPDATE orders SET status = 'paid', updated_at = CURRENT_TIMESTAMP() WHERE order_id = ?`,
+//         [order_id]
+//       );
+
+//       const orderItems = await connection.query(
+//         `SELECT oi.product_id, oi.quantity, p.is_limited
+//          FROM order_items oi
+//          JOIN products p ON oi.product_id = p.id
+//          WHERE oi.order_id = ?`,
+//         [order_id]
+//       );
+
+//       for (const item of orderItems[0]) {
+//         const result = await connection.query(
+//           `UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?`,
+//           [item.quantity, item.product_id, item.quantity]
+//         );
+
+//         if (result[0].affectedRows === 0) {
+//           console.warn(
+//             `Stok tidak dikurangi untuk produk ID ${item.product_id}`
+//           );
+//         }
+
+//         // Update status jadi sold jika limited dan stok habis
+//         const [[product]] = await connection.query(
+//           `SELECT is_limited, stock FROM products WHERE id = ?`,
+//           [item.product_id]
+//         );
+
+//         if (product.is_limited === 1 && product.stock === 0) {
+//           await connection.query(
+//             `UPDATE products SET status = 'sold', updated_at = CURRENT_TIMESTAMP() WHERE id = ?`,
+//             [item.product_id]
+//           );
+//         }
+//         if (product.is_limited === 0 && product.stock === 0) {
+//           await connection.query(
+//             `UPDATE products SET status = 'sold', updated_at = CURRENT_TIMESTAMP() WHERE id = ?`,
+//             [item.product_id]
+//           );
+//         }
+//       }
+
+//       // Hapus cart user
+//       const [[orderUser]] = await connection.query(
+//         `SELECT user_id FROM orders WHERE order_id = ?`,
+//         [order_id]
+//       );
+
+//       if (orderUser?.user_id) {
+//         await connection.query(`DELETE FROM carts WHERE user_id = ?`, [
+//           orderUser.user_id,
+//         ]);
+//       }
+
+//       try {
+//         await connection.query(
+//           `INSERT INTO notifications
+//         (user_id, order_id, title, message, type, created_at)
+//        VALUES (?, ?, ?, ?, ?, NOW())`,
+//           [
+//             orderUser.user_id || 0,
+//             order_id,
+//             "Pesanan Baru Dibayar",
+//             `Pesanan dengan ID ${order_id} telah berhasil dibayar.`,
+//             "order",
+//           ]
+//         );
+//       } catch (notifErr) {
+//         console.error("Gagal membuat notifikasi:", notifErr);
+//         // Jangan throw, biarkan transaksi tetap commit
+//       }
+
+//       io.to("admin").emit("newNotification", {
+//         title: "Pesanan Baru Dibayar",
+//         message: `Pesanan dengan ID ${order_id} telah berhasil dibayar.`,
+//         type: "order",
+//         order_id,
+//       });
+
+//       // Generate PDF invoice
+//       try {
+//         const pdfPath = await generateInvoicePDF(order_id);
+//         const fileName = path.basename(pdfPath);
+//         const invoiceUrl = `/invoices/${fileName}`;
+
+//         await connection.query(
+//           `UPDATE orders SET invoice_url = ?, updated_at = CURRENT_TIMESTAMP() WHERE order_id = ?`,
+//           [invoiceUrl, order_id]
+//         );
+
+//         // Ambil email dan nama user
+//         const [[userResult]] = await connection.query(
+//           `SELECT u.email, s.shipping_firstname
+//            FROM orders o
+//            JOIN users u ON o.user_id = u.id
+//            JOIN order_shipping_details s ON o.order_id = s.order_id
+//            WHERE o.order_id = ?`,
+//           [order_id]
+//         );
+
+//         if (userResult?.email) {
+//           const email = userResult.email;
+//           const name = userResult.shipping_firstname || "Pelanggan";
+//           try {
+//             await sendOrderConfirmationEmail(email, order_id, name, invoiceUrl);
+//           } catch (emailErr) {
+//             console.error("Gagal mengirim email:", emailErr);
+//           }
+//           try {
+//             await sendAdminNotificationEmail(
+//               order_id,
+//               name,
+//               gross_amount,
+//               invoiceUrl
+//             );
+//           } catch (adminEmailErr) {
+//             console.error("Gagal mengirim email ke admin:", adminEmailErr);
+//           }
+//         }
+//       } catch (pdfErr) {
+//         console.error("Gagal generate invoice:", pdfErr);
+//       }
+//     }
+
+//     await connection.commit();
+//     res.status(200).json({ msg: "Payment callback processed successfully" });
+//   } catch (error) {
+//     await connection.rollback();
+//     console.error("Error processing payment callback:", error);
+//     res.status(500).json({
+//       msg: "Gagal memproses payment callback",
+//       error: error.message,
+//     });
+//   } finally {
+//     connection.release();
+//   }
+// };
+
 exports.handlePaymentCallback = async (req, res) => {
   const io = req.app.get("io");
   const {
@@ -282,14 +550,13 @@ exports.handlePaymentCallback = async (req, res) => {
     payment_method_display = bank || "Unknown";
   }
 
-  const connection = await database.getConnection(); // Ambil koneksi manual untuk transaksi
+  const connection = await database.getConnection();
 
   try {
     await connection.beginTransaction();
 
-    // cek order_id ada di orders
     const [orderRows] = await connection.query(
-      `SELECT order_id FROM orders WHERE order_id = ?`,
+      `SELECT order_id, status FROM orders WHERE order_id = ?`,
       [order_id]
     );
 
@@ -302,7 +569,15 @@ exports.handlePaymentCallback = async (req, res) => {
       return res.status(400).json({ msg: "Order tidak ditemukan" });
     }
 
-    // cek transaksi
+    const currentOrderStatus = orderRows[0].status;
+
+    // ✅ Cegah pemrosesan ulang jika sudah paid
+    if (currentOrderStatus === "paid" && newStatus === "success") {
+      await connection.commit();
+      connection.release();
+      return res.status(200).json({ msg: "Callback sudah pernah diproses" });
+    }
+
     const [checkResult] = await connection.query(
       `SELECT COUNT(*) as count FROM transactions WHERE order_id = ?`,
       [order_id]
@@ -353,14 +628,13 @@ exports.handlePaymentCallback = async (req, res) => {
       );
     }
 
-    // Jika transaksi sukses, update order dan stok
     if (newStatus === "success") {
       await connection.query(
         `UPDATE orders SET status = 'paid', updated_at = CURRENT_TIMESTAMP() WHERE order_id = ?`,
         [order_id]
       );
 
-      const orderItems = await connection.query(
+      const [orderItems] = await connection.query(
         `SELECT oi.product_id, oi.quantity, p.is_limited
          FROM order_items oi
          JOIN products p ON oi.product_id = p.id
@@ -368,19 +642,18 @@ exports.handlePaymentCallback = async (req, res) => {
         [order_id]
       );
 
-      for (const item of orderItems[0]) {
-        const result = await connection.query(
+      for (const item of orderItems) {
+        const [result] = await connection.query(
           `UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?`,
           [item.quantity, item.product_id, item.quantity]
         );
 
-        if (result[0].affectedRows === 0) {
+        if (result.affectedRows === 0) {
           console.warn(
             `Stok tidak dikurangi untuk produk ID ${item.product_id}`
           );
         }
 
-        // Update status jadi sold jika limited dan stok habis
         const [[product]] = await connection.query(
           `SELECT is_limited, stock FROM products WHERE id = ?`,
           [item.product_id]
@@ -392,6 +665,7 @@ exports.handlePaymentCallback = async (req, res) => {
             [item.product_id]
           );
         }
+
         if (product.is_limited === 0 && product.stock === 0) {
           await connection.query(
             `UPDATE products SET status = 'sold', updated_at = CURRENT_TIMESTAMP() WHERE id = ?`,
@@ -400,7 +674,6 @@ exports.handlePaymentCallback = async (req, res) => {
         }
       }
 
-      // Hapus cart user
       const [[orderUser]] = await connection.query(
         `SELECT user_id FROM orders WHERE order_id = ?`,
         [order_id]
@@ -415,8 +688,8 @@ exports.handlePaymentCallback = async (req, res) => {
       try {
         await connection.query(
           `INSERT INTO notifications 
-        (user_id, order_id, title, message, type, created_at) 
-       VALUES (?, ?, ?, ?, ?, NOW())`,
+            (user_id, order_id, title, message, type, created_at) 
+           VALUES (?, ?, ?, ?, ?, NOW())`,
           [
             orderUser.user_id || 0,
             order_id,
@@ -427,7 +700,6 @@ exports.handlePaymentCallback = async (req, res) => {
         );
       } catch (notifErr) {
         console.error("Gagal membuat notifikasi:", notifErr);
-        // Jangan throw, biarkan transaksi tetap commit
       }
 
       io.to("admin").emit("newNotification", {
@@ -437,7 +709,6 @@ exports.handlePaymentCallback = async (req, res) => {
         order_id,
       });
 
-      // Generate PDF invoice
       try {
         const pdfPath = await generateInvoicePDF(order_id);
         const fileName = path.basename(pdfPath);
@@ -448,7 +719,6 @@ exports.handlePaymentCallback = async (req, res) => {
           [invoiceUrl, order_id]
         );
 
-        // Ambil email dan nama user
         const [[userResult]] = await connection.query(
           `SELECT u.email, s.shipping_firstname
            FROM orders o
@@ -466,6 +736,7 @@ exports.handlePaymentCallback = async (req, res) => {
           } catch (emailErr) {
             console.error("Gagal mengirim email:", emailErr);
           }
+
           try {
             await sendAdminNotificationEmail(
               order_id,

@@ -1,5 +1,6 @@
 const { query } = require("../../config/database");
 const { database } = require("../../config/database");
+const fs = require("fs");
 const { v4: uuidv4 } = require("uuid"); // Menggunakan UUID untuk token (opsional)
 const { sendShippedEmail } = require("../../services/emailService");
 const generateOrderCode = () => {
@@ -14,25 +15,42 @@ const generateOrderCode = () => {
 };
 
 const createOrder = async (req, res) => {
-  const {
-    user_id,
-    subtotal,
-    shipping_fee,
-    promo_code,
-    discount_amount,
-    products, // List of products to be added to order_items
-    shipping_details, // Shipping details to be added to order_shipping_details
-  } = req.body;
+  console.log("🟡 req.body:", req.body);
+  console.log("🟢 req.body.data (JSON):", req.body.data);
+  console.log("🔵 req.files:", req.files);
 
   const connection = await database.getConnection();
 
   try {
+    // 1. Ambil dan parse body JSON dari field "data"
+    const rawData = req.body.data;
+    if (!rawData) {
+      return res.status(400).json({ message: "Missing order data" });
+    }
+
+    const {
+      user_id,
+      subtotal,
+      shipping_fee,
+      promo_code,
+      discount_amount,
+      products,
+      shipping_details,
+    } = JSON.parse(rawData);
+
+    // 2. Cek jika ada file upload
+    // Buat map untuk menyimpan file per product
+    const fileMap = {};
+    req.files?.forEach((file) => {
+      fileMap[file.fieldname] = file.filename;
+    });
+
     await connection.beginTransaction();
 
-    // Step 1: Validasi produk limited
+    // 3. Validasi produk limited
     for (const product of products) {
-      const rows = await connection.query(
-        "SELECT is_limited, status FROM products WHERE id = ?",
+      const [rows] = await connection.query(
+        "SELECT is_limited, status, stock FROM products WHERE id = ?",
         [product.product_id]
       );
 
@@ -52,106 +70,117 @@ const createOrder = async (req, res) => {
             message: `Produk '${product.product_name}' sudah terjual.`,
           });
         }
-        if (product.quantity > product.stock) {
+
+        if (product.quantity > dbProduct.stock) {
           await connection.rollback();
           return res.status(400).json({
-            message: `Pesanan melebihi stok`,
-          });
-        }
-
-        if (!product.is_limited && quantity > product.stock) {
-          return res.status(400).json({
-            msg: `Stok '${item.name}' hanya tersedia ${product.stock}, kamu mencoba membeli ${item.quantity}.`,
+            message: `Stok tidak cukup untuk produk '${product.product_name}'.`,
           });
         }
       }
     }
 
-    // Step 2: Insert order
+    // 4. Simpan order
     const order_id = uuidv4();
     const order_code = generateOrderCode();
     const admin_fee = 2000;
-
     const cleanSubtotal = Number(subtotal) || 0;
     const cleanDiscount = Number(discount_amount) || 0;
     const cleanShipping = Number(shipping_fee) || 0;
-
     const final_total =
       cleanSubtotal - cleanDiscount + admin_fee + cleanShipping;
 
-    const orderSql = `
-      INSERT INTO orders (order_id, user_id, subtotal, admin_fee, shipping_fee, total_amount, promo_code, discount_amount, order_code)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `;
-    await connection.query(orderSql, [
-      order_id,
-      user_id,
-      cleanSubtotal,
-      admin_fee,
-      cleanShipping,
-      final_total,
-      promo_code || null,
-      discount_amount || null,
-      order_code,
-    ]);
+    await connection.query(
+      `INSERT INTO orders (order_id, user_id, subtotal, admin_fee, shipping_fee, total_amount, promo_code, discount_amount, order_code)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        order_id,
+        user_id,
+        cleanSubtotal,
+        admin_fee,
+        cleanShipping,
+        final_total,
+        promo_code || null,
+        cleanDiscount,
+        order_code,
+      ]
+    );
 
-    // Step 3: Insert order_items
+    // 5. Simpan order_items
     const orderItemsSql = `
-      INSERT INTO order_items (order_id, product_id, product_name, price, quantity, total)
-      VALUES ?
-    `;
-    const orderItemsValues = products.map((product) => [
-      order_id,
-      product.product_id,
-      product.product_name,
-      product.price,
-      product.quantity,
-      product.total,
-    ]);
+      INSERT INTO order_items (order_id, product_id, product_name, price, quantity, total, is_custom, custom_width, custom_height, note, custom_image_url, custom_price)
+      VALUES ?`;
+    const orderItemsValues = products.map((product) => {
+      const fileKey = product.custom?.fileKey; // contoh: customFile_0
+      const filename = fileKey ? fileMap[fileKey] : null;
+      const custom_image_url = filename ? `/uploads/${filename}` : null;
+
+      const custom_width = product.custom?.width || null;
+      const custom_height = product.custom?.height || null;
+      const custom_notes = product.custom?.notes || null;
+      const custom_price = product.custom?.price || null;
+
+      const is_custom =
+        custom_width || custom_height || custom_notes || filename ? 1 : 0;
+      return [
+        order_id,
+        product.product_id,
+        product.product_name,
+        product.price,
+        product.quantity,
+        product.total,
+        is_custom,
+        custom_width,
+        custom_height,
+        custom_notes,
+        custom_image_url, // custom_image_url
+        custom_price,
+      ];
+    });
+
     await connection.query(orderItemsSql, [orderItemsValues]);
 
-    // Step 4: Insert shipping details
-    const shippingDetailsSql = `
-      INSERT INTO order_shipping_details (order_id, shipping_firstname, shipping_lastname, shipping_phone, shipping_address, province, city, postal_code, courier, etd, shipping_cost)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `;
-    await connection.query(shippingDetailsSql, [
-      order_id,
-      shipping_details.shipping_firstname,
-      shipping_details.shipping_lastname,
-      shipping_details.shipping_phone,
-      shipping_details.shipping_address,
-      shipping_details.province,
-      shipping_details.city,
-      shipping_details.postal_code,
-      shipping_details.courier,
-      shipping_details.etd,
-      shipping_details.shipping_cost,
-    ]);
+    // 6. Simpan shipping
+    await connection.query(
+      `INSERT INTO order_shipping_details
+      (email, order_id, shipping_firstname, shipping_lastname, shipping_phone, shipping_address, province, city, postal_code, courier, etd, shipping_cost)
+      VALUES (?,?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        shipping_details.email,
+        order_id,
+        shipping_details.shipping_firstname,
+        shipping_details.shipping_lastname,
+        shipping_details.shipping_phone,
+        shipping_details.shipping_address,
+        shipping_details.province,
+        shipping_details.city,
+        shipping_details.postal_code,
+        shipping_details.courier,
+        shipping_details.etd,
+        shipping_details.shipping_cost,
+      ]
+    );
 
-    // Step 5: Update status produk limited jadi 'sold'
-    // Step 5: Update status produk jadi 'sold' jika stok tersisa 1 dan berhasil dipesan
+    // 7. Kurangi stok & tandai sold
     for (const product of products) {
-      // Kurangi stok dulu
-      const [updateStockResult] = await connection.query(
+      const [updateResult] = await connection.query(
         "UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?",
         [product.quantity, product.product_id, product.quantity]
       );
 
-      if (updateStockResult.affectedRows === 0) {
+      if (updateResult.affectedRows === 0) {
         await connection.rollback();
         return res.status(400).json({
-          message: `Gagal mengurangi stok untuk produk ID ${product.product_id}. Mungkin stok tidak cukup.`,
+          message: `Stok tidak cukup untuk produk ID ${product.product_id}`,
         });
       }
 
-      // Cek apakah stok jadi 0
-      const [[updatedProduct]] = await connection.query(
+      const [[updated]] = await connection.query(
         "SELECT stock FROM products WHERE id = ?",
         [product.product_id]
       );
 
-      if (updatedProduct.stock === 0) {
+      if (updated.stock === 0) {
         await connection.query(
           "UPDATE products SET status = 'sold' WHERE id = ?",
           [product.product_id]
@@ -162,16 +191,17 @@ const createOrder = async (req, res) => {
     await connection.commit();
 
     return res.status(201).json({
-      order_id: order_id,
-      admin_fee: admin_fee,
+      order_id,
+      admin_fee,
       message: "Order created successfully",
     });
   } catch (error) {
     await connection.rollback();
-    console.error("Error creating order:", error);
-    return res
-      .status(500)
-      .json({ message: "Internal Server Error", error: error.message });
+    console.error("❌ Error creating order:", error);
+    return res.status(500).json({
+      message: "Internal Server Error",
+      error: error.message,
+    });
   } finally {
     connection.release();
   }
@@ -744,6 +774,210 @@ const getTransactionById = async (req, res) => {
   }
 };
 
+const createOrderByAdmin = async (req, res) => {
+  console.log("🟡 req.body:", req.body);
+  console.log("🟢 req.body.data (JSON):", req.body.data);
+  console.log("🔵 req.files:", req.files);
+
+  const connection = await database.getConnection();
+
+  try {
+    // STEP 1: Ambil dan parse data dari req.body.data
+    const rawData = req.body.data;
+    if (!rawData) {
+      return res.status(400).json({ message: "Missing order data" });
+    }
+
+    const {
+      customer_name,
+      customer_email,
+      customer_phone,
+      subtotal,
+      shipping_fee,
+      promo_code,
+      discount_amount,
+      products,
+    } = JSON.parse(rawData);
+
+    // STEP 2: Siapkan mapping file upload
+    const fileMap = {};
+    req.files?.forEach((file) => {
+      fileMap[file.fieldname] = file.filename;
+    });
+
+    await connection.beginTransaction();
+
+    // STEP 3: Cari/buat user
+    let user_id;
+    const [[existingUser]] = await connection.query(
+      "SELECT id FROM users WHERE email = ?",
+      [customer_email]
+    );
+
+    if (existingUser) {
+      user_id = existingUser.id;
+    } else {
+      const result = await connection.query(
+        `INSERT INTO users (name, email, role_id, phone, created_by_admin) VALUES (?,?, ?, ?, 1)`,
+        [customer_name, customer_email, 2, customer_phone || null]
+      );
+      user_id = result[0].insertId;
+    }
+
+    // STEP 4: Validasi stok produk limited
+    for (const product of products) {
+      const [rows] = await connection.query(
+        "SELECT is_limited, status, stock FROM products WHERE id = ?",
+        [product.product_id]
+      );
+
+      if (rows.length === 0) {
+        await connection.rollback();
+        return res.status(400).json({
+          message: `Produk ID ${product.product_id} tidak ditemukan.`,
+        });
+      }
+
+      const dbProduct = rows[0];
+
+      if (dbProduct.is_limited) {
+        if (dbProduct.status === "sold") {
+          await connection.rollback();
+          return res.status(400).json({
+            message: `Produk '${product.product_name}' sudah terjual.`,
+          });
+        }
+
+        if (product.quantity > dbProduct.stock) {
+          await connection.rollback();
+          return res.status(400).json({
+            message: `Stok tidak cukup untuk produk '${product.product_name}'.`,
+          });
+        }
+      }
+    }
+
+    // STEP 5: Simpan order
+    const order_id = uuidv4();
+    const order_code = generateOrderCode();
+    const admin_fee = 0;
+    const cleanSubtotal = Number(subtotal) || 0;
+    const cleanDiscount = Number(discount_amount) || 0;
+    const cleanShipping = Number(shipping_fee) || 0;
+    const final_total =
+      cleanSubtotal - cleanDiscount + admin_fee + cleanShipping;
+
+    await connection.query(
+      `INSERT INTO orders (order_id, user_id, subtotal, admin_fee, shipping_fee, total_amount, promo_code, discount_amount, order_code, status, order_source)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'paid')`,
+      [
+        order_id,
+        user_id,
+        cleanSubtotal,
+        admin_fee,
+        cleanShipping,
+        final_total,
+        promo_code || null,
+        cleanDiscount,
+        order_code,
+        "offline",
+      ]
+    );
+
+    // STEP 6: Simpan order_items
+    const orderItemsSql = `
+      INSERT INTO order_items 
+      (order_id, product_id, product_name, price, quantity, total, is_custom, custom_width, custom_height, note, custom_image_url, custom_price)
+      VALUES ?`;
+
+    const orderItemsValues = products.map((product, index) => {
+      const fileKey = product.custom?.fileKey || `customFile_${index}`;
+      const filename = fileKey ? fileMap[fileKey] : null;
+      const custom_image_url = filename ? `/uploads/${filename}` : null;
+
+      const custom_width = product.custom?.width || null;
+      const custom_height = product.custom?.height || null;
+      const custom_notes = product.custom?.notes || null;
+      const custom_price = product.custom?.price || null;
+
+      const is_custom =
+        custom_width || custom_height || custom_notes || filename ? 1 : 0;
+
+      return [
+        order_id,
+        product.product_id,
+        product.product_name,
+        product.price,
+        product.quantity,
+        product.total,
+        is_custom,
+        custom_width,
+        custom_height,
+        custom_notes,
+        custom_image_url,
+        custom_price,
+      ];
+    });
+
+    await connection.query(orderItemsSql, [orderItemsValues]);
+
+    // STEP 7: Update stok dan status produk
+    for (const product of products) {
+      const [updateResult] = await connection.query(
+        "UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?",
+        [product.quantity, product.product_id, product.quantity]
+      );
+
+      if (updateResult.affectedRows === 0) {
+        await connection.rollback();
+        return res.status(400).json({
+          message: `Stok tidak cukup untuk produk ID ${product.product_id}`,
+        });
+      }
+
+      const [[updated]] = await connection.query(
+        "SELECT stock FROM products WHERE id = ?",
+        [product.product_id]
+      );
+
+      if (updated.stock === 0) {
+        await connection.query(
+          "UPDATE products SET status = 'sold' WHERE id = ?",
+          [product.product_id]
+        );
+      }
+    }
+
+    // STEP 8: Kirim email invoice
+    try {
+      const invoiceUrl = `/invoices/${order_code}.pdf`;
+      await sendOrderConfirmationEmail(
+        customer_email,
+        order_id,
+        customer_name,
+        invoiceUrl
+      );
+    } catch (emailErr) {
+      console.warn("❗ Email gagal dikirim:", emailErr.message);
+    }
+
+    await connection.commit();
+
+    return res.status(201).json({
+      order_id,
+      order_code,
+      admin_fee,
+      message: "Order berhasil dibuat oleh admin.",
+    });
+  } catch (err) {
+    await connection.rollback();
+    console.error("❌ Gagal membuat order:", err);
+    return res.status(500).json({ message: "Terjadi kesalahan server" });
+  } finally {
+    connection.release();
+  }
+};
+
 module.exports = {
   getRecentOrders,
   createOrder,
@@ -756,4 +990,5 @@ module.exports = {
   getOrderById,
   deleteOrderById,
   getTransactionById,
+  createOrderByAdmin,
 };

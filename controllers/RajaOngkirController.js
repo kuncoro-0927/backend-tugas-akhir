@@ -3,7 +3,7 @@ const { query } = require("../config/database");
 const BASE_URL = "https://rajaongkir.komerce.id/api/v1/";
 
 const FormData = require("form-data");
-const API_KEY = "EJv2CoKLf94a0f0c779ab1f25f5nHLar"; // CYiHS6520b4793cd0ef3bc9bTnd2hLar // EJv2CoKLf94a0f0c779ab1f25f5nHLar // unxrIR8G98d2e20af7dc8a10pF19psbR
+const API_KEY = "CYiHS6520b4793cd0ef3bc9bTnd2hLar"; // CYiHS6520b4793cd0ef3bc9bTnd2hLar // EJv2CoKLf94a0f0c779ab1f25f5nHLar // unxrIR8G98d2e20af7dc8a10pF19psbR
 const cron = require("node-cron");
 // Ambil daftar provinsi
 const getProvinces = async (req, res) => {

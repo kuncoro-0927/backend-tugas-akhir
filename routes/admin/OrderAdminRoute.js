@@ -11,10 +11,12 @@ const {
   getOrderById,
   deleteOrderById,
   getTransactionById,
+  createOrderByAdmin,
 } = require("../../controllers/admin/OrderController");
 const {
   createAdminPayment,
 } = require("../../controllers/admin/PaymentAdminRoute.js");
+const upload = require("../../middleware/Multer.js");
 const { verifyAdminToken } = require("../../middleware/VerifyToken.js");
 const { checkRole } = require("../../middleware/CheckRole.js");
 
@@ -26,8 +28,17 @@ OrderAdminRoute.post(
   checkRole(1),
   createAdminPayment
 );
+
+OrderAdminRoute.post(
+  "/order/offline",
+  upload.any(),
+  verifyAdminToken,
+  checkRole(1),
+  createOrderByAdmin
+);
 OrderAdminRoute.post(
   "/create/admin/orders",
+  upload.any(),
   verifyAdminToken,
   checkRole(1),
   createOrder
