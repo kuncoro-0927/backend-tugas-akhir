@@ -3,6 +3,7 @@ const {
   getTotalSales,
   getTodaySalesData,
   getTotalAmountSuccess,
+  getTotalAmountChange,
 } = require("../../controllers/admin/SalesController");
 const { verifyAdminToken } = require("../../middleware/VerifyToken.js");
 const { checkRole } = require("../../middleware/CheckRole.js");
@@ -22,4 +23,12 @@ SalesRoute.get(
   checkRole(1),
   getTotalAmountSuccess
 );
+
+SalesRoute.get(
+  "/total/amount/change",
+  verifyAdminToken,
+  checkRole(1),
+  getTotalAmountChange
+);
+
 module.exports = SalesRoute;

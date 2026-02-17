@@ -40,6 +40,8 @@ const getCities = async (req, res) => {
 
 const calculateCost = async (req, res) => {
   const { origin, destination, courier, weight } = req.body;
+  console.log("👉 Data diterima dari client:");
+  console.log({ origin, destination, courier, weight });
 
   try {
     // Membuat form-data
@@ -48,6 +50,9 @@ const calculateCost = async (req, res) => {
     form.append("destination", destination);
     form.append("courier", courier);
     form.append("weight", weight);
+    console.log("👉 FormData (raw string):");
+    form.submit = false; // biar aman kalau ada method submit
+    console.log(form.getBuffer().toString());
 
     // Kirim data form-data ke Komerce API
     const response = await axios.post(
@@ -60,7 +65,8 @@ const calculateCost = async (req, res) => {
         },
       }
     );
-
+    console.log("✅ Response dari Komerce:");
+    console.dir(response.data, { depth: null });
     // Jika response.data berisi informasi yang valid, lakukan pemrosesan lebih lanjut
     res.json(response.data);
   } catch (error) {
@@ -102,7 +108,7 @@ const trackWaybill = async (req, res) => {
     }
 
     // Jika tracking number ada, kirim ke API Komerce
-    const courier = "jne";
+    const courier = "anteraja";
     const form = new FormData();
     form.append("awb", tracking_number);
     form.append("courier", courier);

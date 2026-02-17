@@ -869,7 +869,7 @@ const createOrderByAdmin = async (req, res) => {
 
     await connection.query(
       `INSERT INTO orders (order_id, user_id, subtotal, admin_fee, shipping_fee, total_amount, promo_code, discount_amount, order_code, status, order_source)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'paid')`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'paid', ?)`,
       [
         order_id,
         user_id,

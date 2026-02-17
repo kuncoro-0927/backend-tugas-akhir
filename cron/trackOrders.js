@@ -18,7 +18,7 @@ const trackOrders = async () => {
       // Kirim request ke API RajaOngkir untuk melacak status pengiriman
       const form = new FormData();
       form.append("awb", tracking_number);
-      form.append("courier", "jne");
+      form.append("courier", "anteraja");
 
       const response = await axios.post(
         "https://rajaongkir.komerce.id/api/v1/track/waybill",

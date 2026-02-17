@@ -81,7 +81,7 @@ cron.schedule("0 */6 * * *", () => {
   trackOrders();
 });
 
-// cron.schedule("*/10 * * * * *", () => {
+// cron.schedule("*/5 * * * * *", () => {
 //   console.log("Running cron job every 10 seconds to check order status...");
 //   trackOrders();
 // });

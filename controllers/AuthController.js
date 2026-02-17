@@ -387,8 +387,10 @@ const requestPasswordReset = async (req, res) => {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS,
       },
+      tls: {
+        rejectUnauthorized: false,
+      },
     });
-
     await transporter.sendMail({
       from: `"Dukungan Faza Frame" <${process.env.EMAIL_USER}>`,
       to: email,

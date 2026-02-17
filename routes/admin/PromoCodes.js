@@ -5,6 +5,10 @@ const {
   getPromoById,
   addPromo,
   updatePromo,
+  deletePromo,
+  getAllReviews,
+  getReviewById,
+  deleteReview,
 } = require("../../controllers/admin/PromoCodeController");
 const { verifyAdminToken } = require("../../middleware/VerifyToken.js");
 const { checkRole } = require("../../middleware/CheckRole.js");
@@ -45,4 +49,31 @@ PromoCodesAdminRoute.put(
   togglePromoStatus
 );
 
+PromoCodesAdminRoute.delete(
+  "/delete/promo/:id",
+  verifyAdminToken,
+  checkRole(1),
+  deletePromo
+);
+
+PromoCodesAdminRoute.get(
+  "/get/all/reviews",
+  verifyAdminToken,
+  checkRole(1),
+  getAllReviews
+);
+
+PromoCodesAdminRoute.get(
+  "/get/review/:id",
+  verifyAdminToken,
+  checkRole(1),
+  getReviewById
+);
+
+PromoCodesAdminRoute.delete(
+  "/delete/review/:id",
+  verifyAdminToken,
+  checkRole(1),
+  deleteReview
+);
 module.exports = PromoCodesAdminRoute;

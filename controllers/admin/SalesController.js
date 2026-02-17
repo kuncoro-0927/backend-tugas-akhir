@@ -110,4 +110,51 @@ const getTotalAmountSuccess = async (req, res) => {
       .json({ message: "Internal Server Error", error: error.message });
   }
 };
-module.exports = { getTotalSales, getTodaySalesData, getTotalAmountSuccess };
+
+const getTotalAmountChange = async (req, res) => {
+  try {
+    const now = new Date();
+    const startOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+
+    const queryAmount = async (startDate, endDate) => {
+      const sql = `
+        SELECT SUM(gross_amount) AS total
+        FROM transactions
+        WHERE transaction_status = 'success'
+        AND DATE(created_at) BETWEEN ? AND ?
+      `;
+      const [result] = await query(sql, [startDate, endDate]);
+      return parseFloat(result.total || 0);
+    };
+
+    const currentAmount = await queryAmount(startOfThisMonth, now);
+    const previousAmount = await queryAmount(startOfLastMonth, endOfLastMonth);
+
+    let percentageChange = null;
+    if (previousAmount === 0 && currentAmount > 0) {
+      percentageChange = 100; // atau null → disesuaikan
+    } else if (previousAmount === 0 && currentAmount === 0) {
+      percentageChange = 0;
+    } else {
+      percentageChange =
+        ((currentAmount - previousAmount) / previousAmount) * 100;
+    }
+
+    return res.json({ percentageChange });
+  } catch (error) {
+    console.error("Error calculating percentage change:", error);
+    return res.status(500).json({
+      message: "Internal Server Error",
+      error: error.message,
+    });
+  }
+};
+
+module.exports = {
+  getTotalSales,
+  getTodaySalesData,
+  getTotalAmountSuccess,
+  getTotalAmountChange,
+};

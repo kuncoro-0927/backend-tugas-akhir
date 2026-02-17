@@ -183,10 +183,125 @@ const updatePromo = async (req, res) => {
   }
 };
 
+const deletePromo = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const [promo] = await query(`SELECT * FROM promo_codes WHERE id = ?`, [id]);
+
+    if (!promo) {
+      return res.status(404).json({ message: "Promo tidak ditemukan" });
+    }
+
+    await query(`DELETE FROM promo_codes WHERE id = ?`, [id]);
+
+    return res.json({ message: "Promo berhasil dihapus" });
+  } catch (error) {
+    console.error("Error deleting promo:", error);
+    return res.status(500).json({
+      message: "Internal Server Error",
+      error: error.message,
+    });
+  }
+};
+
+const getAllReviews = async (req, res) => {
+  try {
+    const reviews = await query(`
+      SELECT 
+        r.id, 
+        r.user_id, 
+        u.name AS user_name, 
+        u.email, 
+        p.image_url, 
+        r.product_id, 
+        p.name AS product_name,
+        r.rating, 
+        r.comment, 
+        r.created_at
+      FROM reviews r
+      JOIN users u ON r.user_id = u.id
+      JOIN products p ON r.product_id = p.id
+      WHERE r.is_deleted = FALSE
+      ORDER BY r.created_at DESC
+    `);
+
+    return res.json({ data: reviews });
+  } catch (error) {
+    console.error("Error fetching reviews:", error);
+    return res.status(500).json({
+      message: "Internal Server Error",
+      error: error.message,
+    });
+  }
+};
+
+const getReviewById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const [review] = await query(
+      `
+      SELECT r.id, r.user_id, u.name AS user_name, u.email, r.product_id, p.image_url, p.name AS product_name,
+             r.rating, r.comment, r.created_at
+      FROM reviews r
+      JOIN users u ON r.user_id = u.id
+      JOIN products p ON r.product_id = p.id
+      WHERE r.id = ?
+    `,
+      [id]
+    );
+
+    if (!review) {
+      return res.status(404).json({ message: "Review tidak ditemukan" });
+    }
+
+    return res.json({ data: review });
+  } catch (error) {
+    console.error("Error fetching review by ID:", error);
+    return res.status(500).json({
+      message: "Internal Server Error",
+      error: error.message,
+    });
+  }
+};
+
+const deleteReview = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const [existing] = await query(`SELECT * FROM reviews WHERE id = ?`, [id]);
+
+    if (!existing) {
+      return res.status(404).json({ message: "Review tidak ditemukan" });
+    }
+
+    await query(
+      `
+      UPDATE reviews 
+      SET is_deleted = TRUE, deleted_by_admin = TRUE 
+      WHERE id = ?
+    `,
+      [id]
+    );
+
+    return res.json({ message: "Review berhasil ditandai sebagai dihapus" });
+  } catch (error) {
+    console.error("Error soft deleting review:", error);
+    return res
+      .status(500)
+      .json({ message: "Internal Server Error", error: error.message });
+  }
+};
+
 module.exports = {
   getAllPromo,
   togglePromoStatus,
   getPromoById,
   addPromo,
   updatePromo,
+  deletePromo,
+  getAllReviews,
+  getReviewById,
+  deleteReview,
 };

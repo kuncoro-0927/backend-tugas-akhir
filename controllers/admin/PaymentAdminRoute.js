@@ -103,7 +103,7 @@ exports.createAdminPayment = async (req, res) => {
         secure: true,
       },
       callbacks: {
-        finish: `${process.env.BACKEND_URL}/admin/data/orders`,
+        finish: `${process.env.FRONTEND_URL}/admin/data/orders`,
       },
     };
 
